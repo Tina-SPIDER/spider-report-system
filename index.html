@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>通產工業 生產報工系統</title>
+  <link rel="stylesheet" href="css/style.css?v=39">
+</head>
+<body>
+
+  <!-- 頂列 -->
+  <header>
+    <img src="logo.png?v=39" class="header-logo" alt="logo">
+    <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
+    <span id="whoami"></span>
+    <span class="lang-switch">
+      <button id="langZh">中文</button>
+      <button id="langVi">VN</button>
+    </span>
+    <button id="btnLogout" data-i18n="logout" class="hide">登出</button>
+  </header>
+
+  <!-- 登入畫面 -->
+  <section id="loginView">
+    <div class="login-wrap">
+      <div class="login-card">
+        <img src="logo.png?v=39" class="login-logo" alt="logo">
+        <h2 data-i18n="login">登入</h2>
+        <form id="loginForm">
+          <label data-i18n="account">帳號</label>
+          <input id="inAccount" autocomplete="username" required>
+          <label data-i18n="password">密碼</label>
+          <input id="inPassword" type="password" autocomplete="current-password" required>
+          <div style="height:16px"></div>
+          <button class="btn primary block" type="submit" data-i18n="login_btn">登入</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- 主畫面 -->
+  <section id="appView" class="hide">
+    <main>
+      <!-- 導覽 -->
+      <nav id="nav">
+        <button data-view="report" class="active" data-i18n="nav_report">報工</button>
+        <button data-view="incident" data-i18n="nav_incident">異常回報</button>
+        <button data-view="todo" data-i18n="nav_todo">我的待辦</button>
+        <button data-view="score" data-i18n="nav_score">我的績效</button>
+        <button data-view="team" data-i18n="nav_team">團體績效</button>
+        <button data-view="admin" class="hide" data-i18n="nav_admin">管理</button>
+      </nav>
+
+      <!-- 報工 -->
+      <div id="view-report" class="view">
+        <div class="card">
+          <h3 data-i18n="my_assignments">我的指派工單</h3>
+          <div id="assignList"></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="wo_no">工單號碼</h3>
+          <div class="row">
+            <input id="inWoNo" class="grow" data-i18n-ph="wo_no" placeholder="工單號碼" autocomplete="off">
+            <button id="btnQueryWo" class="btn primary" data-i18n="query">查詢</button>
+          </div>
+
+          <div id="woInfo" class="hide">
+            <div class="wo-info">
+              <span class="k" data-i18n="customer">客戶</span><span id="woCust">-</span>
+              <span class="k" data-i18n="sku">貨編</span><span id="woSku">-</span>
+              <span class="k" data-i18n="product">品名</span><span id="woProduct">-</span>
+              <span class="k" data-i18n="spec">規格</span><span id="woSpec">-</span>
+              <span class="k" data-i18n="material_body">材質:本體</span><span id="woMat1">-</span>
+              <span class="k" data-i18n="material_second">材質:第二添加&拋光</span><span id="woMat2">-</span>
+              <span class="k" data-i18n="surface">表面處理</span><span id="woSurf">-</span>
+            </div>
+            <label data-i18n="station">工序站</label>
+            <select id="selStation"></select>
+            <input id="inNewStation" class="hide" data-i18n-ph="new_station_ph" placeholder="輸入新的站名" style="margin-top:8px">
+            <label data-i18n="machine">使用機台</label>
+            <select id="selMachine"></select>
+            <input id="inNewMachine" class="hide" data-i18n-ph="new_machine_ph" placeholder="輸入機台名稱" style="margin-top:8px">
+            <div style="height:12px"></div>
+            <button id="btnStart" class="btn go block" data-i18n="start">開始工作</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 data-i18n="running_jobs">進行中工單</h3>
+          <div id="runningList"></div>
+        </div>
+      </div>
+
+      <!-- 異常回報 -->
+      <div id="view-incident" class="view hide">
+        <div class="card">
+          <h3 data-i18n="nav_incident">異常回報</h3>
+          <label data-i18n="inc_category">類別</label>
+          <select id="incCat">
+            <option value="品質異常" data-i18n="inc_quality">品質異常</option>
+            <option value="設備異常" data-i18n="inc_equipment">設備異常</option>
+            <option value="時數異常" data-i18n="inc_hours">時數異常</option>
+            <option value="其他" data-i18n="inc_other">其他</option>
+          </select>
+          <input id="incOther" class="hide" data-i18n-ph="inc_other_ph" placeholder="請說明類別" style="margin-top:8px">
+          <label data-i18n="inc_content">內容</label>
+          <textarea id="incContent" data-i18n-ph="inc_content_ph" placeholder="請描述異常情形…" style="min-height:120px"></textarea>
+          <div style="height:12px"></div>
+          <button id="btnIncSubmit" class="btn primary block" data-i18n="submit">送出</button>
+        </div>
+        <div class="card">
+          <h3 data-i18n="inc_my">我的回報紀錄</h3>
+          <div id="incMyList"></div>
+        </div>
+      </div>
+
+      <!-- 我的待辦 -->
+      <div id="view-todo" class="view hide">
+        <div class="card">
+          <h3 data-i18n="nav_todo">我的待辦</h3>
+          <div class="row">
+            <input id="todoInput" class="grow" data-i18n-ph="todo_ph" placeholder="輸入待辦事項…" autocomplete="off">
+            <input id="todoPri" type="number" min="1" max="5" value="3" style="width:70px" title="優先 1-5（自己填）">
+            <input id="todoDate" type="date" style="width:160px" title="預計完成日">
+            <button id="btnTodoAdd" class="btn primary" data-i18n="add">新增</button>
+          </div>
+          <div id="todoSummary" style="margin-top:12px"></div>
+          <div id="todoList" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <!-- 我的績效 -->
+      <div id="view-score" class="view hide">
+        <div class="stat-row" style="margin-bottom:16px">
+          <div class="stat"><div class="num" id="myToday">0</div><div class="lbl" data-i18n="today_score">今日得分</div></div>
+          <div class="stat"><div class="num" id="myMonth">0</div><div class="lbl"><span data-i18n="month_score">本月得分</span> <small id="myMonthLabel"></small></div></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="score_detail">得分明細</h3>
+          <div id="myScoreTable"></div>
+        </div>
+      </div>
+
+      <!-- 團體績效 -->
+      <div id="view-team" class="view hide">
+        <div id="myTeamBanner" class="card" style="text-align:center"></div>
+        <div class="card">
+          <h3 data-i18n="team_rank">班組排行</h3>
+          <div id="teamTable"></div>
+        </div>
+      </div>
+
+      <!-- 管理 -->
+      <div id="view-admin" class="view hide">
+        <div class="admin-layout">
+        <div id="adminTabs">
+          <div class="tab-group">
+            <span class="tab-group-label" data-i18n="grp_monitor">即時監看</span>
+            <div class="tab-group-btns">
+              <button data-atab="dashboard" class="active" data-i18n="admin_dash">即時看板</button>
+              <button data-atab="machine" data-i18n="machine_usage">機台使用率</button>
+              <button data-atab="progress" data-i18n="admin_progress">工單進度</button>
+            </div>
+          </div>
+          <div class="tab-group">
+            <span class="tab-group-label" data-i18n="grp_records">派工與紀錄</span>
+            <div class="tab-group-btns">
+              <button data-atab="assign" data-i18n="admin_assign">工單指派</button>
+              <button data-atab="jobs" data-i18n="admin_jobs">報工紀錄</button>
+              <button data-atab="incident" data-i18n="admin_incident">異常回報</button>
+              <button data-atab="todos" data-i18n="admin_todos">員工待辦</button>
+              <button data-atab="overview" data-i18n="admin_overview">全員總覽</button>
+            </div>
+          </div>
+          <div class="tab-group">
+            <span class="tab-group-label" data-i18n="grp_data">基本資料</span>
+            <div class="tab-group-btns">
+              <button data-atab="emp" data-i18n="admin_emp">員工管理</button>
+              <button data-atab="wo" data-i18n="admin_wo">工單匯入</button>
+              <button data-atab="machmgr" data-i18n="admin_machmgr">機台管理</button>
+            </div>
+          </div>
+        </div>
+        <div class="admin-content">
+
+        <!-- 即時看板 -->
+        <div id="pane-dashboard" class="admin-pane">
+          <div class="card">
+            <h3><span data-i18n="admin_dash">即時看板</span> <small id="dashTime" class="muted"></small></h3>
+            <div id="dashSummary" class="stat-row"></div>
+            <p class="muted" style="font-size:12px;margin-top:8px" data-i18n="dash_auto">每 20 秒自動更新</p>
+          </div>
+          <div class="card">
+            <h3 data-i18n="dash_now">目前正在製作</h3>
+            <div id="dashNow" style="overflow-x:auto"></div>
+          </div>
+          <div class="card">
+            <h3 data-i18n="dash_status_block">今日報工狀態</h3>
+            <div id="dashTable" style="overflow-x:auto"></div>
+          </div>
+          <div class="card">
+            <h3 data-i18n="dash_attend">應報工 / 未報工</h3>
+            <div id="dashAttend" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 機台使用率 -->
+        <div id="pane-machine" class="admin-pane hide">
+          <div class="card">
+            <h3><span data-i18n="machine_usage">機台使用率</span> <small id="machineTime" class="muted"></small></h3>
+            <div id="machineTable" style="overflow-x:auto"></div>
+            <p class="muted" style="font-size:12px;margin-top:8px" data-i18n="dash_auto">每 20 秒自動更新</p>
+          </div>
+        </div>
+
+        <!-- 工單進度 -->
+        <div id="pane-progress" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_progress">工單進度</h3>
+            <div class="row">
+              <input id="pgWo" class="grow" data-i18n-ph="pg_search_ph" placeholder="工單號碼 / 客戶 / 品名" autocomplete="off">
+              <button id="btnPgQuery" class="btn primary" data-i18n="query">查詢</button>
+            </div>
+            <div id="pgInfo" style="margin-top:12px"></div>
+            <div id="pgTable" style="margin-top:10px;overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 工單指派 -->
+        <div id="pane-assign" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_assign">工單指派</h3>
+            <div class="row">
+              <select id="asEmp" class="grow"></select>
+              <input id="asWo" class="grow" data-i18n-ph="wo_no" placeholder="工單號碼" autocomplete="off">
+              <select id="asStation" class="grow"></select>
+              <input id="asDate" type="date" class="grow" title="製作日期">
+              <button id="btnAssign" class="btn primary" data-i18n="assign">指派</button>
+            </div>
+          </div>
+          <div class="card">
+            <h4 data-i18n="assigned_list" style="margin:0 0 10px">已指派清單</h4>
+            <div id="assignTable" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 報工紀錄 -->
+        <div id="pane-jobs" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_jobs">報工紀錄</h3>
+            <div class="row">
+              <input id="jbFrom" type="date" class="grow">
+              <input id="jbTo" type="date" class="grow">
+              <button id="btnJobsQuery" class="btn primary" data-i18n="query">查詢</button>
+              <button id="btnJobsExport" class="btn ghost" data-i18n="export_excel">匯出 Excel</button>
+            </div>
+            <div id="jobsTable" style="margin-top:12px;overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 異常回報（主管檢視）-->
+        <div id="pane-incident" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_incident">異常回報</h3>
+            <div id="incTable" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 員工管理 -->
+        <div id="pane-emp" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="add_emp">新增員工</h3>
+            <div class="row">
+              <input id="neAccount" class="grow" data-i18n-ph="emp_account" placeholder="帳號">
+              <input id="nePassword" class="grow" type="text" data-i18n-ph="emp_password" placeholder="密碼">
+              <input id="neName" class="grow" data-i18n-ph="name" placeholder="姓名">
+            </div>
+            <div class="row" style="margin-top:8px">
+              <input id="neTeam" class="grow" data-i18n-ph="team" placeholder="班組">
+              <select id="neRole" class="grow">
+                <option value="員工">員工 / NV</option>
+                <option value="主管">主管 / QL</option>
+              </select>
+              <select id="neLang" class="grow">
+                <option value="zh">中文</option>
+                <option value="vi">Tiếng Việt</option>
+              </select>
+              <button id="btnAddEmp" class="btn primary" data-i18n="add">新增</button>
+            </div>
+          </div>
+          <div class="card"><div id="empTable"></div></div>
+        </div>
+
+        <!-- 工單匯入 -->
+        <div id="pane-wo" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_wo">工單匯入</h3>
+
+            <!-- 每日匯入：ERP 加工製程明細表 -->
+            <p style="font-size:14px;margin-bottom:6px">
+              <strong data-i18n="erp_title">每日匯入：加工製程明細表 (.xls)</strong><br>
+              <span class="muted" style="font-size:13px" data-i18n="erp_hint"></span>
+            </p>
+            <div class="row">
+              <input type="file" id="erpFile" accept=".xls,.xlsx" class="grow">
+              <button id="btnErpImport" class="btn primary" data-i18n="import">匯入</button>
+            </div>
+            <div id="erpResult" style="font-size:14px;margin-top:10px"></div>
+
+            <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
+
+            <!-- 其他：簡易格式 -->
+            <details>
+              <summary class="muted" style="cursor:pointer;font-size:13px" data-i18n="other_import">其他匯入方式（簡易格式）</summary>
+              <p class="muted" style="font-size:13px;margin:8px 0 6px">
+                <span data-i18n="wo_file_hint"></span>
+              </p>
+              <div class="row">
+                <input type="file" id="woFile" accept=".xlsx,.xls,.csv" class="grow">
+                <button id="btnWoFile" class="btn ghost" data-i18n="import">匯入</button>
+              </div>
+              <div id="woFilePreview" class="muted" style="font-size:13px;margin-top:8px"></div>
+              <div style="height:12px"></div>
+              <textarea id="woImportText" placeholder="WO-0003,SKU-C,產品名,規格,客戶"></textarea>
+              <div style="height:8px"></div>
+              <button id="btnWoImport" class="btn ghost" data-i18n="import">匯入</button>
+              <span id="woImportHint" class="hide"></span>
+            </details>
+          </div>
+        </div>
+
+
+        <!-- 員工待辦 -->
+        <div id="pane-todos" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_todos">員工待辦</h3>
+            <div id="todosTable" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 機台管理 -->
+        <div id="pane-machmgr" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_machmgr">機台管理</h3>
+            <p class="muted" style="font-size:13px" data-i18n="mach_add_hint"></p>
+            <textarea id="machInput" placeholder="CNC-01&#10;傳統車床-02&#10;拋光機-A"></textarea>
+            <div style="height:8px"></div>
+            <button id="btnMachAdd" class="btn primary" data-i18n="add">新增</button>
+          </div>
+          <div class="card">
+            <h4 data-i18n="machine_list" style="margin:0 0 10px">機台清單</h4>
+            <div id="machMgrTable" style="overflow-x:auto"></div>
+          </div>
+        </div>
+
+        <!-- 全員總覽 -->
+        <div id="pane-overview" class="admin-pane hide">
+          <div class="card">
+            <h3><span data-i18n="admin_overview">全員總覽</span> <small id="ovMonthLabel" class="muted"></small></h3>
+            <div id="ovTable"></div>
+          </div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- 未完成提醒 Modal -->
+  <div id="remindModal" class="modal hide">
+    <div class="modal-card">
+      <h3 data-i18n="remind_title">⚠️ 上次未完成的報工</h3>
+      <div id="remindList"></div>
+      <div style="height:14px"></div>
+      <button id="btnRemindClose" class="btn primary block" data-i18n="got_it">知道了</button>
+    </div>
+  </div>
+
+  <!-- 更正報工 Modal（主管）-->
+  <div id="jobEditModal" class="modal hide">
+    <div class="modal-card">
+      <h3 data-i18n="edit_job">更正報工</h3>
+      <input type="hidden" id="jeId">
+      <label data-i18n="work_content">作業內容</label>
+      <input id="jeWork" type="text">
+      <label data-i18n="qty">完成數量</label>
+      <input id="jeQty" type="number" min="0">
+      <label data-i18n="scrap">報廢數量</label>
+      <input id="jeScrap" type="number" min="0">
+      <label data-i18n="note">備註</label>
+      <input id="jeNote" type="text">
+      <div style="height:16px"></div>
+      <div class="row">
+        <button id="btnJeCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+        <button id="btnJeSave" class="btn primary grow" data-i18n="save">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 結束報工 Modal -->
+  <div id="finishModal" class="modal hide">
+    <div class="modal-card">
+      <h3 data-i18n="finish_title">結束報工</h3>
+      <input type="hidden" id="finishJobId">
+      <label data-i18n="work_content">作業內容</label>
+      <input id="finWork" type="text" data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
+      <label data-i18n="qty">生產數量</label>
+      <input id="finQty" type="number" min="0">
+      <label data-i18n="scrap">報廢數量</label>
+      <input id="finScrap" type="number" min="0">
+      <label data-i18n="note">備註</label>
+      <input id="finNote" type="text">
+      <div style="height:16px"></div>
+      <div class="row">
+        <button id="btnFinCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+        <button id="btnFinConfirm" class="btn primary grow" data-i18n="confirm">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- Supabase SDK 先載入 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- SheetJS：讀取 Excel 檔 -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
+  <script src="js/config.js?v=39"></script>
+  <script src="js/i18n.js?v=39"></script>
+  <script src="js/auth.js?v=39"></script>
+  <script src="js/report.js?v=39"></script>
+  <script src="js/incident.js?v=39"></script>
+  <script src="js/todo.js?v=39"></script>
+  <script src="js/score.js?v=39"></script>
+  <script src="js/admin.js?v=39"></script>
+</body>
+</html>

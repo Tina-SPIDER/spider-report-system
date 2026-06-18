@@ -1,0 +1,124 @@
+:root{
+  --bg:#f4f6f9; --card:#fff; --line:#e2e8f0; --txt:#1e293b; --muted:#64748b;
+  --primary:#262626; --primary-d:#000000; --go:#6aac1e; --go-d:#558a16; --warn:#d97706; --err:#dc2626;
+  --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:18px;line-height:1.55}
+.hide{display:none !important}
+.muted{color:var(--muted)}
+.r{text-align:right}
+
+/* 頂列 */
+header{position:sticky;top:0;z-index:20;background:var(--primary);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;box-shadow:var(--shadow)}
+header h1{font-size:22px;margin:0;flex:1}
+.header-logo{height:34px;background:#fff;padding:3px 7px;border-radius:6px;margin-right:6px;flex:none}
+.login-logo{display:block;width:78%;max-width:240px;margin:0 auto 18px}
+.lang-switch button{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px;margin-left:4px}
+.lang-switch button:hover{background:rgba(255,255,255,.3)}
+#whoami{font-size:14px;opacity:.95}
+#btnLogout{background:rgba(255,255,255,.15);color:#fff;border:0;padding:6px 12px;border-radius:8px;cursor:pointer}
+
+/* 登入 */
+.login-wrap{max-width:360px;margin:10vh auto;padding:24px}
+.login-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px}
+.login-card h2{margin:0 0 20px;text-align:center}
+
+/* 容器 */
+main{max-width:860px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font-size:19px}
+
+/* 表單 */
+label{display:block;font-size:16px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;background:#fff;color:var(--txt)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);border-color:var(--primary)}
+textarea{min-height:120px;resize:vertical;font-family:inherit}
+
+/* 按鈕 */
+.btn{display:inline-block;border:0;border-radius:8px;padding:11px 17px;font-size:17px;cursor:pointer;background:#e2e8f0;color:var(--txt)}
+.btn:hover{filter:brightness(.97)}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-d)}
+.btn.go{background:var(--go);color:#fff}
+.btn.ghost{background:#fff;border:1px solid var(--line)}
+.btn.block{width:100%}
+.btn.small{padding:8px 12px;font-size:15px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row .grow{flex:1;min-width:120px}
+
+/* 導覽列 */
+#nav{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:6px;margin-bottom:16px;position:sticky;top:56px;z-index:10}
+#nav button{flex:1;border:0;background:transparent;padding:11px;border-radius:8px;cursor:pointer;font-size:17px;color:var(--muted)}
+#nav button.active{background:var(--primary);color:#fff;font-weight:600}
+
+/* 工單資訊 */
+.wo-info{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0;font-size:15px}
+.wo-info .k{color:var(--muted)}
+
+/* 進行中卡片 */
+.job-card{border:1px solid var(--line);border-left:4px solid var(--go);border-radius:10px;padding:12px;margin-bottom:10px;background:#fff}
+.job-card.paused{border-left-color:var(--warn);background:#fffdf5}
+.job-head{display:flex;justify-content:space-between;align-items:center}
+.job-sub{color:var(--muted);font-size:14px;margin:2px 0}
+.job-timer{font-variant-numeric:tabular-nums;font-size:26px;font-weight:800;color:var(--go);margin:6px 0;letter-spacing:1px}
+.job-card.paused .job-timer{color:var(--warn)}
+.job-btns{display:flex;gap:8px;margin-top:8px}
+
+/* 徽章 */
+.badge{font-size:12px;padding:3px 8px;border-radius:999px;color:#fff;white-space:nowrap}
+.badge.go{background:var(--go)} .badge.warn{background:var(--warn)}
+.badge.err{background:var(--err)} .badge.mute{background:#94a3b8}
+
+/* 數字卡 */
+.stat-row{display:flex;gap:12px}
+.stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;text-align:center}
+.stat .num{font-size:30px;font-weight:700;color:var(--go-d)}
+.stat .lbl{color:var(--muted);font-size:14px}
+
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:14px}
+table{font-size:16px}
+th,td{padding:10px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600;background:#f8fafc}
+input.cell{padding:7px 8px;font-size:15px}
+tr.me-row td{background:#e7f6d5;font-weight:700;color:#3f6212}
+tr.warn-row td{background:#fee2e2;color:var(--err);font-weight:600}
+input.cell.ratio{max-width:90px}
+
+/* 管理子分頁 */
+.admin-layout{display:flex;gap:14px;align-items:flex-start}
+.admin-content{flex:1;min-width:0}
+#adminTabs{width:132px;flex:none;margin-bottom:0}
+.tab-group{margin-bottom:14px}
+.tab-group-label{display:block;font-size:13px;color:var(--muted);font-weight:600;margin:0 0 5px 2px}
+.tab-group-btns{display:flex;flex-direction:column;gap:6px}
+#adminTabs button[data-atab]{width:100%;text-align:left}
+@media(max-width:640px){
+  .admin-layout{flex-direction:column}
+  #adminTabs{width:100%}
+  .tab-group-btns{flex-direction:row;flex-wrap:wrap}
+  #adminTabs button[data-atab]{width:auto;text-align:center}
+}
+#adminTabs button{border:1px solid var(--line);background:#fff;padding:9px 13px;border-radius:8px;cursor:pointer;font-size:16px;font-weight:600}
+#adminTabs button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* 統一風格：未選白底、選中綠色 */
+#adminTabs button[data-atab]{color:var(--txt);background:#fff}
+#adminTabs button[data-atab].active{background:var(--go);color:#fff;border-color:var(--go)}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal-card{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:360px}
+.modal-card h3{margin:0 0 12px}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1e293b;color:#fff;padding:12px 18px;border-radius:10px;opacity:0;pointer-events:none;transition:.25s;z-index:100;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{background:var(--go)} .toast.err{background:var(--err)}
+
+@media(max-width:560px){
+  header h1{font-size:18px}
+  #whoami{display:none}
+  .stat .num{font-size:24px}
+}
