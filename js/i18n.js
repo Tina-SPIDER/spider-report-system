@@ -86,6 +86,8 @@ window.I18N = {
 
     // 通用
     err: "錯誤", ok: "完成", no_data: "無資料", loading: "載入中…",
+    err_login: "帳號或密碼錯誤", err_network: "網路不穩，請稍後再試", err_expired: "登入已過期，請重新登入", err_generic: "操作失敗，請再試一次",
+    detail: "詳細資料", overtime: "逾時未結束", show_pw: "顯示/隱藏密碼",
     saved: "已儲存", created: "已建立", recomputed_n: "已重算 {n} 筆",
   },
   vi: {
@@ -168,6 +170,8 @@ window.I18N = {
     add_rule: "Thêm dòng điểm",
 
     err: "Lỗi", ok: "Xong", no_data: "Không có dữ liệu", loading: "Đang tải…",
+    err_login: "Sai tài khoản hoặc mật khẩu", err_network: "Mạng không ổn định, thử lại sau", err_expired: "Phiên đăng nhập hết hạn, đăng nhập lại", err_generic: "Thao tác thất bại, thử lại",
+    detail: "Chi tiết", overtime: "Quá giờ chưa kết thúc", show_pw: "Hiện/ẩn mật khẩu",
     saved: "Đã lưu", created: "Đã tạo", recomputed_n: "Đã tính lại {n} bản ghi",
   },
 };

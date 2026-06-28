@@ -87,7 +87,7 @@ Report.queryWo = async function () {
   const no = $("#inWoNo").value.trim();
   if (!no) return;
   const { data, error } = await sb.from("work_orders").select("*").eq("work_order_no", no).maybeSingle();
-  if (error) return toast(t("err") + ": " + error.message, "err");
+  if (error) return toast(friendlyErr(error), "err");
   if (!data) {
     Report.current = null;
     $("#woInfo").classList.add("hide");
@@ -146,12 +146,13 @@ Report.start = async function () {
   if (!station) return toast(t("select_station"), "err");
   let machine = $("#selMachine").value;
   if (machine === "__new__") machine = $("#inNewMachine").value.trim();
-  const { error } = await sb.rpc("start_job", {
+  const { data, error } = await sb.rpc("start_job", {
     p_work_order_no: Report.current.work_order_no,
     p_station: station,
     p_machine: machine || null,
   });
-  if (error) return toast(t("err") + ": " + error.message, "err");
+  if (error) return toast(friendlyErr(error), "err");
+  Report._flashId = data && data.id;   // 新卡片高亮用
   toast(t("ok"), "ok");
   Report.stations = []; Report.machines = [];   // 下次重載（含剛新增的站/機台）
   await Report.ensureStations(); await Report.ensureMachines();
@@ -205,7 +206,7 @@ Report.loadRunning = async function () {
     .eq("employee_id", App.ME.id)
     .in("status", ["running", "paused"])
     .order("start_at", { ascending: true });
-  if (error) return toast(t("err") + ": " + error.message, "err");
+  if (error) return toast(friendlyErr(error), "err");
   Report.jobs = data || [];
   // 取進行中工單的客戶/品名
   Report.woMap = {};
@@ -234,11 +235,16 @@ Report.renderRunning = function () {
     const woLine = (_wo.customer || _wo.product_name)
       ? `<div class="job-sub">${_wo.customer || ""}${_wo.product_name ? " · " + _wo.product_name : ""}</div>` : "";
     const wc = j.work_content ? `<div class="job-sub">📝 ${j.work_content}</div>` : "";
+    // 逾時警示（進行中超過 8 小時，多半忘了結束）
+    const mins = (Date.now() - new Date(j.start_at).getTime()) / 60000 - Number(j.paused_minutes || 0);
+    const over = j.status !== "paused" && mins > 480;
+    const overTag = over ? ` <span class="badge err">⚠ ${t("overtime")}</span>` : "";
+    const flash = (Report._flashId && j.id === Report._flashId) ? " flash" : "";
     return `
-    <div class="job-card ${paused ? "paused" : ""}" data-id="${j.id}">
+    <div class="job-card ${paused ? "paused" : ""}${over ? " over" : ""}${flash}" data-id="${j.id}">
       <div class="job-head">
         <strong>${j.work_order_no}</strong>
-        <span class="badge ${paused ? "warn" : "go"}">${paused ? t("status_paused") : t("status_running")}</span>
+        <span class="badge ${paused ? "warn" : "go"}">${paused ? t("status_paused") : t("status_running")}</span>${overTag}
       </div>
       ${woLine}
       <div class="job-sub">${stName}</div>
@@ -259,6 +265,7 @@ Report.renderRunning = function () {
       b.onclick = () => Report.action(id, b.dataset.act);
     });
   });
+  Report._flashId = null;   // 高亮只觸發一次
   Report.tick();
 };
 
@@ -284,11 +291,11 @@ Report.tick = function () {
 Report.action = async function (id, act) {
   if (act === "pause") {
     const { error } = await sb.rpc("pause_job", { p_job_id: id });
-    if (error) return toast(t("err") + ": " + error.message, "err");
+    if (error) return toast(friendlyErr(error), "err");
     await Report.loadRunning();
   } else if (act === "resume") {
     const { error } = await sb.rpc("resume_job", { p_job_id: id });
-    if (error) return toast(t("err") + ": " + error.message, "err");
+    if (error) return toast(friendlyErr(error), "err");
     await Report.loadRunning();
   } else if (act === "finish") {
     Report.openFinish(id);
@@ -316,7 +323,7 @@ Report.confirmFinish = async function () {
   const { data, error } = await sb.rpc("end_job", {
     p_job_id: id, p_qty: qty, p_scrap: scrap, p_note: note, p_work_content: workContent,
   });
-  if (error) return toast(t("err") + ": " + error.message, "err");
+  if (error) return toast(friendlyErr(error), "err");
   $("#finishModal").classList.add("hide");
   const st = data ? data.status : "";
   toast(`${t("finish")} ✓ ${st ? "(" + st + ")" : ""}`, "ok");

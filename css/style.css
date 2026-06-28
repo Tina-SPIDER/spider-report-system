@@ -60,6 +60,12 @@ textarea{min-height:120px;resize:vertical;font-family:inherit}
 /* 進行中卡片 */
 .job-card{border:1px solid var(--line);border-left:4px solid var(--go);border-radius:10px;padding:12px;margin-bottom:10px;background:#fff}
 .job-card.paused{border-left-color:var(--warn);background:#fffdf5}
+.job-card.over{border-left-color:var(--err)}
+.job-card.flash{animation:cardflash 1.6s ease-out}
+@keyframes cardflash{0%{background:#dcfce7}100%{background:#fff}}
+@media(max-width:560px){
+  .todo-row .todo-content{flex-basis:100%;order:-1;margin-bottom:2px}
+}
 .job-head{display:flex;justify-content:space-between;align-items:center}
 .job-sub{color:var(--muted);font-size:14px;margin:2px 0}
 .job-timer{font-variant-numeric:tabular-nums;font-size:26px;font-weight:800;color:var(--go);margin:6px 0;letter-spacing:1px}

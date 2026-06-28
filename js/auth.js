@@ -9,6 +9,15 @@ App.activeView = "report";
 window.$ = (sel, root) => (root || document).querySelector(sel);
 window.$$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
+// 把技術性錯誤轉成白話
+window.friendlyErr = function (e) {
+  const m = ((e && e.message) ? e.message : String(e || "")).toLowerCase();
+  if (m.includes("invalid login")) return t("err_login");
+  if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed") || m.includes("fetch")) return t("err_network");
+  if (m.includes("jwt") || m.includes("expired") || m.includes("not_authenticated") || m.includes("session")) return t("err_expired");
+  return t("err_generic");
+};
+
 window.toast = function (msg, type) {
   const box = $("#toast");
   box.textContent = msg;
@@ -41,6 +50,13 @@ App.init = async function () {
     e.preventDefault();
     await App.login($("#inAccount").value.trim(), $("#inPassword").value);
   };
+  // 密碼顯示/隱藏
+  const pwBtn = $("#btnPwToggle");
+  if (pwBtn) pwBtn.onclick = () => {
+    const p = $("#inPassword");
+    p.type = p.type === "password" ? "text" : "password";
+    pwBtn.textContent = p.type === "password" ? "👁" : "🙈";
+  };
   $("#btnLogout").onclick = App.logout;
 
   // 導覽
@@ -65,7 +81,7 @@ App.login = async function (account, password) {
   if (!account || !password) return toast(t("err"), "err");
   const email = `${account}@report.local`;
   const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) return toast(t("err") + ": " + error.message, "err");
+  if (error) return toast(friendlyErr(error), "err");
   await App.loadProfile();
 };
 

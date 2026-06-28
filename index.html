@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=39">
+  <link rel="stylesheet" href="css/style.css?v=40">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
-    <img src="logo.png?v=39" class="header-logo" alt="logo">
+    <img src="logo.png?v=40" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <span class="lang-switch">
@@ -24,13 +24,16 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=39" class="login-logo" alt="logo">
+        <img src="logo.png?v=40" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
           <input id="inAccount" autocomplete="username" required>
           <label data-i18n="password">密碼</label>
-          <input id="inPassword" type="password" autocomplete="current-password" required>
+          <div style="position:relative">
+            <input id="inPassword" type="password" autocomplete="current-password" required style="padding-right:44px">
+            <button type="button" id="btnPwToggle" aria-label="顯示/隱藏密碼" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;font-size:20px;cursor:pointer;line-height:1">👁</button>
+          </div>
           <div style="height:16px"></div>
           <button class="btn primary block" type="submit" data-i18n="login_btn">登入</button>
         </form>
@@ -65,15 +68,20 @@
           </div>
 
           <div id="woInfo" class="hide">
-            <div class="wo-info">
-              <span class="k" data-i18n="customer">客戶</span><span id="woCust">-</span>
-              <span class="k" data-i18n="sku">貨編</span><span id="woSku">-</span>
-              <span class="k" data-i18n="product">品名</span><span id="woProduct">-</span>
-              <span class="k" data-i18n="spec">規格</span><span id="woSpec">-</span>
-              <span class="k" data-i18n="material_body">材質:本體</span><span id="woMat1">-</span>
-              <span class="k" data-i18n="material_second">材質:第二添加&拋光</span><span id="woMat2">-</span>
-              <span class="k" data-i18n="surface">表面處理</span><span id="woSurf">-</span>
+            <div style="background:#f8fafc;border:0.5px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+              <div style="font-size:15px;color:var(--muted)"><span data-i18n="customer">客戶</span>：<strong style="font-size:19px;color:var(--txt)" id="woCust">-</strong></div>
+              <div style="font-size:15px;color:var(--muted);margin-top:2px"><span data-i18n="product">品名</span>：<strong style="font-size:19px;color:var(--txt)" id="woProduct">-</strong></div>
             </div>
+            <details>
+              <summary class="muted" style="cursor:pointer;font-size:14px" data-i18n="detail">詳細資料</summary>
+              <div class="wo-info" style="margin-top:8px">
+                <span class="k" data-i18n="sku">貨編</span><span id="woSku">-</span>
+                <span class="k" data-i18n="spec">規格</span><span id="woSpec">-</span>
+                <span class="k" data-i18n="material_body">材質:本體</span><span id="woMat1">-</span>
+                <span class="k" data-i18n="material_second">材質:第二添加&拋光</span><span id="woMat2">-</span>
+                <span class="k" data-i18n="surface">表面處理</span><span id="woSurf">-</span>
+              </div>
+            </details>
             <label data-i18n="station">工序站</label>
             <select id="selStation"></select>
             <input id="inNewStation" class="hide" data-i18n-ph="new_station_ph" placeholder="輸入新的站名" style="margin-top:8px">
@@ -425,13 +433,13 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=39"></script>
-  <script src="js/i18n.js?v=39"></script>
-  <script src="js/auth.js?v=39"></script>
-  <script src="js/report.js?v=39"></script>
-  <script src="js/incident.js?v=39"></script>
-  <script src="js/todo.js?v=39"></script>
-  <script src="js/score.js?v=39"></script>
-  <script src="js/admin.js?v=39"></script>
+  <script src="js/config.js?v=40"></script>
+  <script src="js/i18n.js?v=40"></script>
+  <script src="js/auth.js?v=40"></script>
+  <script src="js/report.js?v=40"></script>
+  <script src="js/incident.js?v=40"></script>
+  <script src="js/todo.js?v=40"></script>
+  <script src="js/score.js?v=40"></script>
+  <script src="js/admin.js?v=40"></script>
 </body>
 </html>

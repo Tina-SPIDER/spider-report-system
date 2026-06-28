@@ -142,10 +142,13 @@ Admin.loadDashboard = async function () {
     const body = acts.map((j) => {
       const wo = woMap[j.work_order_no] || {};
       const paused = j.status === "paused";
-      const tag = paused ? ` <span class="badge warn">${t("status_paused")}</span>` : "";
-      return `<tr><td>${(j.employees || {}).name || ""}${tag}</td><td>${j.machine || "-"}</td><td>${wo.customer || ""}</td>
+      const mins = liveMin(j);
+      const over = !paused && mins > 480;   // 逾時 8 小時
+      const tag = paused ? ` <span class="badge warn">${t("status_paused")}</span>`
+        : (over ? ` <span class="badge err">⚠ ${t("overtime")}</span>` : "");
+      return `<tr class="${over ? "warn-row" : ""}"><td>${(j.employees || {}).name || ""}${tag}</td><td>${j.machine || "-"}</td><td>${wo.customer || ""}</td>
         <td>${j.work_order_no}</td><td>${wo.product_name || ""}</td><td>${j.station}</td>
-        <td class="r">${rnd(liveMin(j))}</td></tr>`;
+        <td class="r">${rnd(mins)}</td></tr>`;
     }).join("");
     $("#dashNow").innerHTML = `<table>${head}${body}</table>`;
   }

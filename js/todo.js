@@ -45,9 +45,9 @@ Todo.load = async function () {
   $("#todoList").innerHTML = rows.map((r) => {
     const full = Number(r.progress) >= 100;
     return `
-    <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+    <div class="todo-row" style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <input type="number" min="1" max="5" value="${r.priority}" data-pri="${r.id}" style="width:48px;text-align:center" title="${t("priority")}">
-      <span style="flex:1;min-width:120px;${full ? "text-decoration:line-through;color:#999" : ""}">${todoEsc(r.content)}</span>
+      <span class="todo-content" style="flex:1;min-width:120px;${full ? "text-decoration:line-through;color:#999" : ""}">${todoEsc(r.content)}</span>
       <input type="date" value="${r.due_date || ""}" data-due="${r.id}" style="width:150px" title="${t("todo_due")}">
       <input type="number" min="0" max="100" step="10" value="${Number(r.progress) || 0}" data-prog="${r.id}" style="width:66px;text-align:center">
       <span class="muted" style="font-size:13px">%</span>

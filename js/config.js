@@ -7,9 +7,11 @@ window.SUPABASE_URL      = "https://gnuelffwtemdgjeeaswp.supabase.co";
 window.SUPABASE_ANON_KEY = "sb_publishable_iJ8rBrF-zoo_UxW0mbxt_A_Hw_s_aGi";
 
 // 建立全域 Supabase client（供其他 js 使用）
+// persistSession + autoRefreshToken：一人一機保持登入，不用每天重登
 window.sb = window.supabase.createClient(
   window.SUPABASE_URL,
-  window.SUPABASE_ANON_KEY
+  window.SUPABASE_ANON_KEY,
+  { auth: { persistSession: true, autoRefreshToken: true, storageKey: "spider-report-auth" } }
 );
 
 // Edge Function 端點（建帳號用）
