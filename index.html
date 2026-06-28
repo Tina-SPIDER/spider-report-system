@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=40">
+  <link rel="stylesheet" href="css/style.css?v=41">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
-    <img src="logo.png?v=40" class="header-logo" alt="logo">
+    <img src="logo.png?v=41" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <span class="lang-switch">
@@ -24,7 +24,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=40" class="login-logo" alt="logo">
+        <img src="logo.png?v=41" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -85,6 +85,7 @@
             <label data-i18n="station">工序站</label>
             <select id="selStation"></select>
             <input id="inNewStation" class="hide" data-i18n-ph="new_station_ph" placeholder="輸入新的站名" style="margin-top:8px">
+            <div id="drawingBox" style="margin-top:8px"></div>
             <label data-i18n="machine">使用機台</label>
             <select id="selMachine"></select>
             <input id="inNewMachine" class="hide" data-i18n-ph="new_machine_ph" placeholder="輸入機台名稱" style="margin-top:8px">
@@ -433,13 +434,13 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=40"></script>
-  <script src="js/i18n.js?v=40"></script>
-  <script src="js/auth.js?v=40"></script>
-  <script src="js/report.js?v=40"></script>
-  <script src="js/incident.js?v=40"></script>
-  <script src="js/todo.js?v=40"></script>
-  <script src="js/score.js?v=40"></script>
-  <script src="js/admin.js?v=40"></script>
+  <script src="js/config.js?v=41"></script>
+  <script src="js/i18n.js?v=41"></script>
+  <script src="js/auth.js?v=41"></script>
+  <script src="js/report.js?v=41"></script>
+  <script src="js/incident.js?v=41"></script>
+  <script src="js/todo.js?v=41"></script>
+  <script src="js/score.js?v=41"></script>
+  <script src="js/admin.js?v=41"></script>
 </body>
 </html>

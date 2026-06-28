@@ -81,6 +81,7 @@ Report.clearLookup = function () {
   if ($("#inNewStation")) { $("#inNewStation").value = ""; $("#inNewStation").classList.add("hide"); }
   if ($("#selMachine")) $("#selMachine").innerHTML = "";
   if ($("#inNewMachine")) { $("#inNewMachine").value = ""; $("#inNewMachine").classList.add("hide"); }
+  if ($("#drawingBox")) $("#drawingBox").innerHTML = "";
 };
 
 Report.queryWo = async function () {
@@ -104,9 +105,10 @@ Report.queryWo = async function () {
 
   // 工序下拉：只列「這張工單的製程站」+ 新增站名選項
   const { data: routes } = await sb.from("work_order_routes")
-    .select("seq,station,station_type").eq("work_order_no", data.work_order_no).order("seq");
+    .select("seq,station,station_type,drawing_path").eq("work_order_no", data.work_order_no).order("seq");
+  Report._routes = routes || [];
   const opts = ['<option value="">' + t("select_station") + "</option>"];
-  (routes || []).forEach((r) => {
+  Report._routes.forEach((r) => {
     const v = String(r.station).replace(/"/g, "&quot;");
     opts.push(`<option value="${v}">${r.seq} ${r.station}</option>`);
   });
@@ -117,8 +119,10 @@ Report.queryWo = async function () {
     const isNew = sel.value === "__new__";
     $("#inNewStation").classList.toggle("hide", !isNew);
     if (isNew) $("#inNewStation").focus();
+    Report.updateDrawing();
   };
   $("#inNewStation").classList.add("hide");
+  $("#drawingBox").innerHTML = "";
 
   // 機台下拉（全廠機台 + 新增機台；可不選）
   const mopts = ['<option value="">' + t("select_machine") + "</option>"];
@@ -137,6 +141,21 @@ Report.queryWo = async function () {
   $("#inNewMachine").classList.add("hide");
 
   $("#woInfo").classList.remove("hide");
+};
+
+// 依選到的站顯示「查看圖面」
+Report.updateDrawing = function () {
+  const box = $("#drawingBox");
+  if (!box) return;
+  const station = $("#selStation").value;
+  const r = (Report._routes || []).find((x) => x.station === station && x.drawing_path);
+  if (!station || station === "__new__" || !r) { box.innerHTML = ""; return; }
+  box.innerHTML = `<button type="button" id="btnViewDrawing" class="btn ghost block">${t("view_drawing")}</button>`;
+  $("#btnViewDrawing").onclick = async () => {
+    const { data, error } = await sb.storage.from("drawings").createSignedUrl(r.drawing_path, 3600);
+    if (error || !data) return toast(friendlyErr(error), "err");
+    window.open(data.signedUrl, "_blank");
+  };
 };
 
 Report.start = async function () {

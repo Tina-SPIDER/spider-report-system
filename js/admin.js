@@ -656,7 +656,7 @@ Admin.doErpImport = function () {
         wo: find("工單號碼"), sku: find("產品編號"), name: find("產品名稱"),
         spec: find("產品規格"), cust: find("客戶名稱"),
         mat1: find("材質", "本體"), mat2: find("第二添加"), surf: find("表面處理"),
-        seq: find("代碼"), stName: find("站名"), stType: find("站別"),
+        seq: find("代碼"), stName: find("站名"), stType: find("站別"), drawing: find("圖檔檔名", "T"),
       };
       const get = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : "");
 
@@ -682,7 +682,7 @@ Admin.doErpImport = function () {
           const key = wo + "|" + seq;
           if (!seen.has(key)) {
             seen.add(key);
-            routes.push({ work_order_no: wo, seq, station: st, station_type: get(row, I.stType) || null });
+            routes.push({ work_order_no: wo, seq, station: st, station_type: get(row, I.stType) || null, drawing_file: get(row, I.drawing) || null });
           }
           stations.add(st);
         }
