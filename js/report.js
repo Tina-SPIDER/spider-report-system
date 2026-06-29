@@ -240,6 +240,15 @@ Report.openDrawingViewer = function (url, title) {
   stage.onpointerup = up; stage.onpointercancel = up;
 };
 
+// 由 drawing_path 直接看圖（圖片→全螢幕縮放；PDF→開新視窗）
+Report.viewDrawing = async function (path, title) {
+  if (!path) return;
+  const { data, error } = await sb.storage.from("drawings").createSignedUrl(path, 3600);
+  if (error || !data) return toast(friendlyErr(error), "err");
+  if (/\.pdf(\?|$)/i.test(path)) window.open(data.signedUrl, "_blank");
+  else Report.openDrawingViewer(data.signedUrl, title || t("drawing"));
+};
+
 Report.start = async function () {
   if (!Report.current) return toast(t("wo_not_found"), "err");
   let station = $("#selStation").value;
@@ -311,10 +320,13 @@ Report.loadRunning = async function () {
   Report.jobs = data || [];
   // 取進行中工單的客戶/品名
   Report.woMap = {};
+  Report.routeDraw = {};
   const nos = [...new Set(Report.jobs.map((j) => j.work_order_no))];
   if (nos.length) {
     const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name").in("work_order_no", nos);
     (wos || []).forEach((w) => (Report.woMap[w.work_order_no] = w));
+    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,station,drawing_path").in("work_order_no", nos);
+    (rts || []).forEach((r) => { if (r.drawing_path) Report.routeDraw[r.work_order_no + "|" + r.station] = r.drawing_path; });
   }
   Report.renderRunning();
 };
@@ -329,7 +341,8 @@ Report.renderRunning = function () {
   Report.stations.forEach((s) => (stMap[s.code] = s));
   box.innerHTML = Report.jobs.map((j) => {
     const st = stMap[j.station];
-    let stName = st ? stationName(st) : j.station;
+    const stBase = st ? stationName(st) : j.station;
+    let stName = stBase;
     if (j.machine) stName += ` · 🛠 ${j.machine}`;
     const paused = j.status === "paused";
     const _wo = (Report.woMap || {})[j.work_order_no] || {};
@@ -341,6 +354,8 @@ Report.renderRunning = function () {
     const over = j.status !== "paused" && mins > 480;
     const overTag = over ? ` <span class="badge err">⚠ ${t("overtime")}</span>` : "";
     const flash = (Report._flashId && j.id === Report._flashId) ? " flash" : "";
+    const _dp = (Report.routeDraw || {})[j.work_order_no + "|" + j.station];
+    const drawBtn = _dp ? `<button class="btn small ghost" data-act="drawing" data-draw="${String(_dp).replace(/"/g, "&quot;")}" data-dtitle="📐 ${String(stBase).replace(/"/g, "&quot;")} ${t("drawing")}">📐 ${t("drawing")}</button>` : "";
     return `
     <div class="job-card ${paused ? "paused" : ""}${over ? " over" : ""}${flash}" data-id="${j.id}">
       <div class="job-head">
@@ -352,6 +367,7 @@ Report.renderRunning = function () {
       ${wc}
       <div class="job-timer" data-timer>${t("elapsed")}: …</div>
       <div class="job-btns">
+        ${drawBtn}
         ${paused
           ? `<button class="btn small" data-act="resume">${t("resume")}</button>`
           : `<button class="btn small ghost" data-act="pause">${t("pause")}</button>`}
@@ -363,7 +379,7 @@ Report.renderRunning = function () {
   $$("#runningList .job-card").forEach((card) => {
     const id = card.dataset.id;
     card.querySelectorAll("button").forEach((b) => {
-      b.onclick = () => Report.action(id, b.dataset.act);
+      b.onclick = () => { if (b.dataset.act === "drawing") Report.viewDrawing(b.dataset.draw, b.dataset.dtitle); else Report.action(id, b.dataset.act); };
     });
   });
   Report._flashId = null;   // 高亮只觸發一次
