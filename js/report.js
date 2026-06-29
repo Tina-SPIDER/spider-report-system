@@ -242,7 +242,7 @@ Report.openDrawingViewer = function (url, title) {
 
 // 由 drawing_path 直接看圖（圖片→全螢幕縮放；PDF→開新視窗）
 Report.viewDrawing = async function (path, title) {
-  if (!path) return;
+  if (!path) return toast(t("no_drawing"));
   const { data, error } = await sb.storage.from("drawings").createSignedUrl(path, 3600);
   if (error || !data) return toast(friendlyErr(error), "err");
   if (/\.pdf(\?|$)/i.test(path)) window.open(data.signedUrl, "_blank");
@@ -355,7 +355,7 @@ Report.renderRunning = function () {
     const overTag = over ? ` <span class="badge err">⚠ ${t("overtime")}</span>` : "";
     const flash = (Report._flashId && j.id === Report._flashId) ? " flash" : "";
     const _dp = (Report.routeDraw || {})[j.work_order_no + "|" + j.station];
-    const drawBtn = _dp ? `<button class="btn small ghost" data-act="drawing" data-draw="${String(_dp).replace(/"/g, "&quot;")}" data-dtitle="📐 ${String(stBase).replace(/"/g, "&quot;")} ${t("drawing")}">📐 ${t("drawing")}</button>` : "";
+    const drawBtn = `<button class="btn small ghost" data-act="drawing" data-draw="${_dp ? String(_dp).replace(/"/g, "&quot;") : ""}" data-dtitle="📐 ${String(stBase).replace(/"/g, "&quot;")} ${t("drawing")}">📐 ${t("drawing")}</button>`;
     return `
     <div class="job-card ${paused ? "paused" : ""}${over ? " over" : ""}${flash}" data-id="${j.id}">
       <div class="job-head">
