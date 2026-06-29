@@ -143,19 +143,101 @@ Report.queryWo = async function () {
   $("#woInfo").classList.remove("hide");
 };
 
-// 依選到的站顯示「查看圖面」
-Report.updateDrawing = function () {
+// 選到某站 → 自動在下方帶出「該站圖面」獨立預覽欄（可放大縮小）
+Report.updateDrawing = async function () {
   const box = $("#drawingBox");
   if (!box) return;
   const station = $("#selStation").value;
+  if (!station || station === "__new__") { box.innerHTML = ""; return; }
   const r = (Report._routes || []).find((x) => x.station === station && x.drawing_path);
-  if (!station || station === "__new__" || !r) { box.innerHTML = ""; return; }
-  box.innerHTML = `<button type="button" id="btnViewDrawing" class="btn ghost block">${t("view_drawing")}</button>`;
-  $("#btnViewDrawing").onclick = async () => {
-    const { data, error } = await sb.storage.from("drawings").createSignedUrl(r.drawing_path, 3600);
-    if (error || !data) return toast(friendlyErr(error), "err");
-    window.open(data.signedUrl, "_blank");
+  if (!r) { box.innerHTML = `<div class="drawing-empty">${t("no_drawing")}</div>`; return; }
+  box.innerHTML = `<div class="drawing-empty">${t("drawing_loading")}</div>`;
+  const reqId = (Report._drawReq = (Report._drawReq || 0) + 1);
+  const { data, error } = await sb.storage.from("drawings").createSignedUrl(r.drawing_path, 3600);
+  if (reqId !== Report._drawReq) return;            // 期間又換了站，丟棄舊結果
+  if (error || !data) { box.innerHTML = `<div class="drawing-empty">${friendlyErr(error)}</div>`; return; }
+  Report.renderDrawingPanel(box, data.signedUrl, station, r.drawing_path);
+};
+
+// 畫出預覽面板（圖片＝內嵌可縮放；PDF＝內嵌＋放大開新視窗）
+Report.renderDrawingPanel = function (box, url, station, key) {
+  const title = `📐 ${station} ${t("drawing")}`;
+  const isPdf = /\.pdf(\?|$)/i.test(key) || /\.pdf(\?|$)/i.test(url);
+  if (isPdf) {
+    box.innerHTML = `
+      <div class="drawing-panel">
+        <div class="drawing-bar"><span class="drawing-title">${title}</span>
+          <span class="drawing-tools"><button type="button" class="dbtn" data-act="full">⛶ ${t("zoom")}</button></span>
+        </div>
+        <div class="drawing-stage pdf"><iframe title="${title}"></iframe></div>
+      </div>`;
+    box.querySelector("iframe").src = url;
+    box.querySelector('[data-act="full"]').onclick = () => window.open(url, "_blank");
+    return;
+  }
+  box.innerHTML = `
+    <div class="drawing-panel">
+      <div class="drawing-bar"><span class="drawing-title">${title}</span>
+        <span class="drawing-tools">
+          <button type="button" class="dbtn" data-z="out">－</button>
+          <button type="button" class="dbtn" data-z="reset">100%</button>
+          <button type="button" class="dbtn" data-z="in">＋</button>
+          <button type="button" class="dbtn" data-z="full">⛶</button>
+        </span>
+      </div>
+      <div class="drawing-stage" data-stage><img draggable="false" alt="${title}"></div>
+    </div>`;
+  box.querySelector("img").src = url;
+  Report.bindZoom(box.querySelector("[data-stage]"), box, url, title);
+};
+
+// 內嵌圖片縮放（按鈕＋滾輪＋拖曳平移），⛶ 開全螢幕
+Report.bindZoom = function (stage, scope, url, title) {
+  const img = stage.querySelector("img");
+  let z = 1;
+  const apply = () => { img.style.width = (z * 100) + "%"; };
+  const set = (nz) => { z = Math.min(6, Math.max(1, Math.round(nz * 10) / 10)); apply(); };
+  apply();
+  scope.querySelector('[data-z="in"]').onclick = () => set(z + 0.5);
+  scope.querySelector('[data-z="out"]').onclick = () => set(z - 0.5);
+  scope.querySelector('[data-z="reset"]').onclick = () => set(1);
+  scope.querySelector('[data-z="full"]').onclick = () => Report.openDrawingViewer(url, title);
+  stage.onwheel = (e) => { e.preventDefault(); set(z + (e.deltaY < 0 ? 0.3 : -0.3)); };
+  let drag = null;
+  stage.onpointerdown = (e) => { drag = { x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop }; try { stage.setPointerCapture(e.pointerId); } catch {} stage.style.cursor = "grabbing"; };
+  stage.onpointermove = (e) => { if (!drag) return; stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); };
+  stage.onpointerup = stage.onpointercancel = () => { drag = null; stage.style.cursor = "grab"; };
+};
+
+// 全螢幕檢視：按鈕＋滾輪縮放、單指拖曳、雙指縮放
+Report.openDrawingViewer = function (url, title) {
+  const dv = $("#drawingViewer"), img = $("#dvImg"), stage = $("#dvStage");
+  $("#dvTitle").textContent = title;
+  img.src = url;
+  dv.classList.remove("hide");
+  let z = 1;
+  const apply = () => { img.style.width = (z * 100) + "%"; };
+  const set = (nz) => { z = Math.min(8, Math.max(1, Math.round(nz * 100) / 100)); apply(); };
+  set(1);
+  $("#dvIn").onclick = () => set(z + 0.5);
+  $("#dvOut").onclick = () => set(z - 0.5);
+  $("#dvReset").onclick = () => set(1);
+  $("#dvClose").onclick = () => { dv.classList.add("hide"); img.src = ""; };
+  stage.onwheel = (e) => { e.preventDefault(); set(z + (e.deltaY < 0 ? 0.4 : -0.4)); };
+  const pts = new Map(); let startDist = 0, startZ = 1, drag = null;
+  stage.onpointerdown = (e) => {
+    pts.set(e.pointerId, e); try { stage.setPointerCapture(e.pointerId); } catch {}
+    if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop };
+    if (pts.size === 2) { const a = [...pts.values()]; startDist = Math.hypot(a[0].clientX - a[1].clientX, a[0].clientY - a[1].clientY); startZ = z; drag = null; }
   };
+  stage.onpointermove = (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, e);
+    if (pts.size === 2) { const a = [...pts.values()]; const d = Math.hypot(a[0].clientX - a[1].clientX, a[0].clientY - a[1].clientY); if (startDist) set(startZ * d / startDist); }
+    else if (drag) { stage.scrollLeft = drag.l - (e.clientX - drag.x); stage.scrollTop = drag.t - (e.clientY - drag.y); }
+  };
+  const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) startDist = 0; if (pts.size === 0) drag = null; };
+  stage.onpointerup = up; stage.onpointercancel = up;
 };
 
 Report.start = async function () {
@@ -212,7 +294,7 @@ Report.loadAssignments = async function () {
       const st = b.dataset.st;
       if (st) {
         const sel = $("#selStation");
-        if ([...sel.options].some((o) => o.value === st)) sel.value = st;
+        if ([...sel.options].some((o) => o.value === st)) { sel.value = st; Report.updateDrawing(); }
       }
       $("#inWoNo").scrollIntoView({ behavior: "smooth", block: "center" });
     };
