@@ -125,7 +125,10 @@ window.I18N = {
     wo_qty: "工單數量", progress_partial: "部分完成",
     qty_required: "請填寫生產數量（整批報廢請填 0）",
     force_qty_ask: "強制結束 {wo} 的「{st}」\n\n請輸入這次的完成數量（整批報廢請填 0）：",
-    act_report: "報工", admin_assign: "工單指派", assign: "指派",
+    as_est: "預估", as_est_per: "預估工時/顆(分)", as_est_total: "全單預估(分)", as_est_src: "來源",
+    as_src_actual: "實際 x{n}", as_src_erp: "ERP",
+    as_est_sum: "全部站別合計約 {n} 分（{q} 顆）",
+    as_est_note: "工時優先採用「同貨編同站過去報工的實際中位數(每顆)」，沒有紀錄才用 ERP 製程時間；兩者都沒有顯示「—」。ERP 的製程時間實際只有約 4% 有填。",    act_report: "報工", admin_assign: "工單指派", assign: "指派",
     select_employee: "選擇員工", assigned_list: "已指派清單", any_station: "（不指定站別）", due_date: "製作日期", assigner: "指派人",
     finish_title: "結束報工",
 
@@ -302,7 +305,10 @@ window.I18N = {
     wo_qty: "SL lệnh SX", progress_partial: "Xong một phần",
     qty_required: "Hãy nhập số lượng hoàn thành (phế toàn bộ thì nhập 0)",
     force_qty_ask: "Kết thúc {wo} - \"{st}\"\n\nNhập số lượng hoàn thành (phế toàn bộ nhập 0):",
-    act_report: "Báo công", admin_assign: "Giao lệnh SX", assign: "Giao",
+    as_est: "Ước tính", as_est_per: "Giờ ước tính/cái (phút)", as_est_total: "Cả đơn (phút)", as_est_src: "Nguồn",
+    as_src_actual: "Thực tế x{n}", as_src_erp: "ERP",
+    as_est_sum: "Tổng các công đoạn khoảng {n} phút ({q} cái)",
+    as_est_note: "Ưu tiên dùng trung vị giờ thực tế mỗi cái của cùng mã hàng & công đoạn; không có mới dùng giờ ERP; cả hai đều không có thì hiển thị «—».",    act_report: "Báo công", admin_assign: "Giao lệnh SX", assign: "Giao",
     select_employee: "Chọn nhân viên", assigned_list: "Danh sách đã giao", any_station: "(Không chỉ định)", due_date: "Ngày làm", assigner: "Người giao",
     finish_title: "Kết thúc báo công",
 

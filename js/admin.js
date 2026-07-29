@@ -799,17 +799,87 @@ Admin.initAssign = async function () {
   Admin.loadAssignList();
 };
 
+// 輸入工單號後列出製程站，並帶出每站的預估工時。
+// 工時有兩個來源，優先用實際的：
+//   ① 同貨編同站過去報工的「實際工時中位數（每顆）」— 剔除單顆超過 8 小時的忘記結束紀錄
+//   ② ERP 的製程時間T（work_order_routes.std_minutes）— 實際只有約 4% 有值
 Admin.loadAssignStations = async function () {
   const wo = $("#asWo").value.trim();
   const sel = $("#asStation");
   sel.innerHTML = `<option value="">${t("any_station")}</option>`;
+  $("#asEst").innerHTML = "";
   if (!wo) return;
-  const { data } = await sb.from("work_order_routes").select("seq,station").eq("work_order_no", wo).order("seq");
-  (data || []).forEach((r) => {
+
+  const [{ data: routes }, { data: w }] = await Promise.all([
+    sb.from("work_order_routes").select("seq,station,station_type,std_minutes").eq("work_order_no", wo).order("seq"),
+    sb.from("work_orders").select("*").eq("work_order_no", wo).maybeSingle(),
+  ]);
+  const rs = routes || [];
+  if (!rs.length) { $("#asEst").innerHTML = `<p class="muted" style="font-size:14px">${t("wo_not_found")}</p>`; return; }
+
+  // 同貨編過去的實際工時
+  const act = {};
+  if (w && w.sku) {
+    const { data: sameSku } = await sb.from("work_orders").select("work_order_no").eq("sku", w.sku).limit(500);
+    const nos = (sameSku || []).map((x) => x.work_order_no);
+    if (nos.length) {
+      const { data: jobs } = await sb.from("jobs")
+        .select("station,work_minutes,qty,status").eq("status", "done").in("work_order_no", nos.slice(0, 300));
+      const bag = {};
+      (jobs || []).forEach((j) => {
+        const mins = Number(j.work_minutes);
+        if (!isFinite(mins) || mins <= 0) return;
+        const per = mins / Math.max(1, Number(j.qty) || 1);
+        if (per <= 0 || per > 480) return;              // 剔除忘記按結束的離群值
+        (bag[j.station] = bag[j.station] || []).push(per);
+      });
+      Object.entries(bag).forEach(([st, arr]) => {
+        const a = [...arr].sort((x, y) => x - y);
+        const m = Math.floor(a.length / 2);
+        const med = a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;   // 偶數筆要取兩個中間值的平均
+        act[st] = { med: Math.round(med * 10) / 10, n: a.length };
+      });
+    }
+  }
+
+  const qty = Number(w && w.qty);
+  const hasQty = isFinite(qty) && qty > 0;
+  const estOf = (r) => {
+    const a = act[r.station];
+    if (a) return { per: a.med, src: "actual", n: a.n };
+    const s = Number(r.std_minutes);
+    if (isFinite(s) && s > 0) return { per: s, src: "erp", n: 0 };
+    return null;
+  };
+
+  rs.forEach((r) => {
+    const e = estOf(r);
     const o = document.createElement("option");
-    o.value = r.station; o.textContent = `${r.seq} ${r.station}`;
+    o.value = r.station;
+    o.textContent = `${r.seq} ${r.station}` + (e ? ` · ${t("as_est")} ${e.per} ${t("minutes")}` : "");
     sel.appendChild(o);
   });
+
+  // 下方列出全部站別的預估，方便主管抓整體節奏
+  const head = `<tr><th>${t("sp_seq")}</th><th>${t("station")}</th><th class="r">${t("as_est_per")}</th>
+    ${hasQty ? `<th class="r">${t("as_est_total")}</th>` : ""}<th>${t("as_est_src")}</th></tr>`;
+  let sum = 0;
+  const body = rs.map((r) => {
+    const e = estOf(r);
+    if (e) sum += e.per * (hasQty ? qty : 1);
+    const src = !e ? `<span class="muted">—</span>`
+      : e.src === "actual" ? `<span class="badge go">${t("as_src_actual", { n: e.n })}</span>`
+      : `<span class="badge mute">${t("as_src_erp")}</span>`;
+    return `<tr${r.station_type === "加工戶" ? ' style="opacity:.55"' : ""}>
+      <td>${r.seq}</td><td>${r.station}</td>
+      <td class="r">${e ? e.per : "—"}</td>
+      ${hasQty ? `<td class="r">${e ? Math.round(e.per * qty) : "—"}</td>` : ""}
+      <td>${src}</td></tr>`;
+  }).join("");
+  const foot = sum > 0
+    ? `<p class="muted" style="font-size:14px;margin:8px 0 0">${t("as_est_sum", { n: Math.round(sum), q: hasQty ? qty : 1 })}</p>` : "";
+  $("#asEst").innerHTML = `<table>${head}${body}</table>${foot}
+    <p class="muted" style="font-size:13px;margin:6px 0 0">${t("as_est_note")}</p>`;
 };
 
 Admin.doAssign = async function () {
