@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=52">
+  <link rel="stylesheet" href="css/style.css?v=53">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=52" class="header-logo" alt="logo">
+    <img src="logo.png?v=53" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=52" class="login-logo" alt="logo">
+        <img src="logo.png?v=53" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -273,8 +273,22 @@
         <div id="pane-machine" class="admin-pane hide">
           <div class="card">
             <h3><span data-i18n="machine_usage">機台使用率</span> <small id="machineTime" class="muted"></small></h3>
-            <div id="machineTable" style="overflow-x:auto"></div>
-            <p class="muted" style="font-size:12px;margin-top:8px" data-i18n="dash_auto">每 20 秒自動更新</p>
+            <div class="row">
+              <select id="mcBy" class="grow">
+                <option value="machine" data-i18n="mc_by_machine">依機台</option>
+                <option value="station" data-i18n="mc_by_station">依工站</option>
+              </select>
+              <select id="mcPick" class="grow"></select>
+              <input id="mcFrom" type="date" class="grow">
+              <input id="mcTo" type="date" class="grow">
+              <span class="mc-plan"><span data-i18n="mc_plan_min">計畫(分)/日</span>
+                <input id="mcPlan" type="number" min="1" step="10" value="480" style="width:90px"></span>
+              <button id="btnMcQuery" class="btn primary" data-i18n="query">查詢</button>
+              <button id="btnMcExport" class="btn ghost" data-i18n="export_excel">匯出 Excel</button>
+            </div>
+            <div id="mcCount" class="muted" style="font-size:14px;margin-top:10px"></div>
+            <div id="machineTable" style="overflow-x:auto;margin-top:6px"></div>
+            <p id="mcNote" class="proto-note" style="margin-top:12px"></p>
           </div>
         </div>
 
@@ -563,18 +577,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=52"></script>
-  <script src="js/i18n.js?v=52"></script>
-  <script src="js/auth.js?v=52"></script>
-  <script src="js/report.js?v=52"></script>
-  <script src="js/incident.js?v=52"></script>
-  <script src="js/todo.js?v=52"></script>
-  <script src="js/home.js?v=52"></script>
-  <script src="js/score.js?v=52"></script>
-  <script src="js/admin.js?v=52"></script>
-  <script src="js/scoreplan.js?v=52"></script>
-  <script src="js/calendar.js?v=52"></script>
-  <script src="js/nav.js?v=52"></script>
-  <script src="js/notify.js?v=52"></script>
+  <script src="js/config.js?v=53"></script>
+  <script src="js/i18n.js?v=53"></script>
+  <script src="js/auth.js?v=53"></script>
+  <script src="js/report.js?v=53"></script>
+  <script src="js/incident.js?v=53"></script>
+  <script src="js/todo.js?v=53"></script>
+  <script src="js/home.js?v=53"></script>
+  <script src="js/score.js?v=53"></script>
+  <script src="js/admin.js?v=53"></script>
+  <script src="js/scoreplan.js?v=53"></script>
+  <script src="js/calendar.js?v=53"></script>
+  <script src="js/nav.js?v=53"></script>
+  <script src="js/notify.js?v=53"></script>
 </body>
 </html>

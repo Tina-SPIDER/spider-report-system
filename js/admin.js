@@ -93,45 +93,115 @@ Admin.initDashboard = function () {
   Admin.dashTimer = setInterval(Admin.loadDashboard, 20000); // 每 20 秒
 };
 
-// ---------- 機台使用率（獨立分頁，自動更新） ----------
-Admin.initMachine = function () {
-  Admin.loadMachine();
-  Admin.dashTimer = setInterval(Admin.loadMachine, 20000);
-};
+// ---------- 機台使用率：改成可查日期區間的報表，不再每 20 秒自動刷新
+//            （查詢中被刷掉篩選條件很干擾）。實作在檔案下方 Admin.initMachine。
 
+// 稼動/品質報表：一列 = 一個機台（或工站）在某一天
+// ⚠️ 性能P% 與 OEE% 需要「每顆標準工時」，停機主因需要暫停時記錄原因，
+//    這兩項目前資料庫都沒有，所以顯示「—」而不是編一個數字出來。
 Admin.loadMachine = async function () {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start); end.setDate(end.getDate() + 1);
-  const sel = "status,work_minutes,start_at,paused_minutes,paused_at,machine";
-  const [doneRes, actRes] = await Promise.all([
-    sb.from("jobs").select(sel).eq("status", "done").gte("start_at", start.toISOString()).lt("start_at", end.toISOString()),
-    sb.from("jobs").select(sel).in("status", ["running", "paused"]),
-  ]);
-  if (doneRes.error) return toast(t("err") + ": " + doneRes.error.message, "err");
+  const by = $("#mcBy").value || "machine";
+  const from = $("#mcFrom").value, to = $("#mcTo").value;
+  if (!from || !to) return;
+  const plan = Math.max(1, Number($("#mcPlan").value) || 480);
+  const toNext = new Date(to + "T00:00:00"); toNext.setDate(toNext.getDate() + 1);
 
-  const liveMin = (j) => {
-    let op = 0;
-    if (j.status === "paused" && j.paused_at) op = (Date.now() - new Date(j.paused_at).getTime()) / 60000;
-    return Math.max(0, (Date.now() - new Date(j.start_at).getTime()) / 60000 - Number(j.paused_minutes || 0) - op);
-  };
-  const SHIFT_MIN = 480;
+  const { data, error } = await sb.from("jobs")
+    .select("machine,station,work_minutes,paused_minutes,qty,scrap_qty,start_at,status")
+    .eq("status", "done")
+    .gte("start_at", from + "T00:00:00").lt("start_at", toNext.toISOString())
+    .order("start_at", { ascending: false }).limit(5000);
+  if (error) return toast(t("err") + ": " + error.message, "err");
+
+  // 依「對象 + 日期」彙總
   const m = new Map();
-  const g = (c) => { if (!m.has(c)) m.set(c, { code: c, min: 0, cnt: 0, active: 0 }); return m.get(c); };
-  (doneRes.data || []).forEach((j) => { if (j.machine) { const x = g(j.machine); x.min += Number(j.work_minutes || 0); x.cnt++; } });
-  (actRes.data || []).forEach((j) => { if (j.machine) { const x = g(j.machine); x.min += liveMin(j); x.cnt++; x.active++; } });
-  const rows = [...m.values()].sort((a, b) => b.min - a.min);
+  (data || []).forEach((j) => {
+    const key0 = by === "machine" ? (j.machine || t("unspecified")) : (j.station || t("unspecified"));
+    const day = fmtDate(j.start_at);
+    const k = key0 + "|" + day;
+    if (!m.has(k)) m.set(k, { name: key0, day, run: 0, down: 0, good: 0, bad: 0, jobs: 0 });
+    const x = m.get(k);
+    x.run += Number(j.work_minutes) || 0;
+    x.down += Number(j.paused_minutes) || 0;
+    x.good += Number(j.qty) || 0;
+    x.bad += Number(j.scrap_qty) || 0;
+    x.jobs++;
+  });
+  let rows = [...m.values()].sort((a, b) => b.day.localeCompare(a.day) || a.name.localeCompare(b.name));
 
-  const p2 = (n) => String(n).padStart(2, "0");
-  $("#machineTime").textContent = `${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())}`;
-  if (rows.length === 0) { $("#machineTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
-  const head = `<tr><th>${t("machine")}</th><th>${t("status")}</th><th class="r">${t("today_use_min")}</th><th class="r">${t("util")}</th><th class="r">${t("dash_done")}</th></tr>`;
+  // 篩選下拉（保留目前選擇）
+  const names = [...new Set(rows.map((r) => r.name))].sort();
+  const pick = $("#mcPick");
+  const keep = pick.value;
+  pick.innerHTML = `<option value="">${by === "machine" ? t("mc_all_machine") : t("mc_all_station")}</option>` +
+    names.map((n) => `<option value="${String(n).replace(/"/g, "&quot;")}">${n}</option>`).join("");
+  if (keep && names.includes(keep)) pick.value = keep;
+  if (pick.value) rows = rows.filter((r) => r.name === pick.value);
+
+  Admin._mcRows = rows;
+  Admin._mcPlan = plan;
+  $("#mcCount").textContent = t("jobs_total", { n: rows.length });
+  $("#mcNote").innerHTML = t("mc_note");
+
+  const now = new Date(); const p2 = (n) => String(n).padStart(2, "0");
+  $("#machineTime").textContent = `${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  if (!rows.length) { $("#machineTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+
+  const pctCell = (v) => {
+    if (v == null) return `<td class="r muted">—</td>`;
+    const c = v >= 85 ? "var(--go)" : v >= 70 ? "var(--warn)" : "var(--err)";
+    return `<td class="r"><strong style="color:${c}">${v.toFixed(1)}%</strong></td>`;
+  };
+  const head = `<tr>
+    <th>${by === "machine" ? t("machine") : t("station")}</th><th>${t("date")}</th>
+    <th class="r">${t("mc_plan")}</th><th class="r">${t("mc_down")}</th><th class="r">${t("mc_run")}</th>
+    <th class="r">${t("mc_good")}</th><th class="r">${t("mc_bad")}</th><th class="r">${t("mc_out")}</th>
+    <th>${t("mc_reason")}</th>
+    <th class="r">${t("mc_a")}</th><th class="r">${t("mc_p")}</th><th class="r">${t("mc_q")}</th><th class="r">${t("mc_oee")}</th></tr>`;
   const body = rows.map((x) => {
-    const util = Math.min(100, Math.round(x.min / SHIFT_MIN * 100));
-    const badge = x.active > 0 ? `<span class="badge go">${t("in_use")}</span>` : `<span class="badge mute">${t("idle")}</span>`;
-    return `<tr><td>${x.code}</td><td>${badge}</td><td class="r">${Math.round(x.min)}</td><td class="r">${util}%</td><td class="r">${x.cnt}</td></tr>`;
+    const out = x.good + x.bad;
+    const a = Math.min(100, x.run / plan * 100);
+    const q = out > 0 ? (x.good / out * 100) : null;
+    return `<tr>
+      <td>${x.name}</td><td>${x.day}</td>
+      <td class="r">${plan}</td><td class="r">${Math.round(x.down)}</td><td class="r">${Math.round(x.run)}</td>
+      <td class="r">${x.good}</td><td class="r">${x.bad}</td><td class="r">${out}</td>
+      <td class="muted">—</td>
+      ${pctCell(a)}${pctCell(null)}${pctCell(q)}${pctCell(null)}</tr>`;
   }).join("");
   $("#machineTable").innerHTML = `<table>${head}${body}</table>`;
+};
+
+Admin.initMachine = function () {
+  if (!$("#mcFrom").value) {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    $("#mcFrom").value = fmtDate(first);
+    $("#mcTo").value = fmtDate(now);
+  }
+  $("#btnMcQuery").onclick = Admin.loadMachine;
+  $("#mcBy").onchange = () => { $("#mcPick").value = ""; Admin.loadMachine(); };
+  $("#mcPick").onchange = Admin.loadMachine;
+  $("#mcPlan").onchange = Admin.loadMachine;
+  $("#btnMcExport").onclick = Admin.exportMachine;
+  Admin.loadMachine();
+};
+
+Admin.exportMachine = function () {
+  const rows = Admin._mcRows || [];
+  if (!rows.length) return toast(t("no_data"), "err");
+  const plan = Admin._mcPlan || 480;
+  const by = $("#mcBy").value === "machine" ? t("machine") : t("station");
+  const aoa = [[by, t("date"), t("mc_plan"), t("mc_down"), t("mc_run"), t("mc_good"), t("mc_bad"), t("mc_out"), t("mc_a"), t("mc_q")]];
+  rows.forEach((x) => {
+    const out = x.good + x.bad;
+    aoa.push([x.name, x.day, plan, Math.round(x.down), Math.round(x.run), x.good, x.bad, out,
+      Number(Math.min(100, x.run / plan * 100).toFixed(1)), out > 0 ? Number((x.good / out * 100).toFixed(1)) : ""]);
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "稼動率");
+  XLSX.writeFile(wb, `機台稼動率_${$("#mcFrom").value}_${$("#mcTo").value}.xlsx`);
+  toast(t("export_ok", { n: rows.length }), "ok");
 };
 
 // ---------- 工單進度（獨立分頁） ----------
