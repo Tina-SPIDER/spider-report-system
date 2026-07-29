@@ -166,6 +166,7 @@ Report.updateStationProgress = async function () {
   const box = $("#stationProgress");
   if (!box || !Report.current) return;
   const station = $("#selStation").value;
+  Report._stProgress = null;
   if (!station || station === "__new__") { box.innerHTML = ""; return; }
 
   const reqId = (Report._spReq = (Report._spReq || 0) + 1);
@@ -181,6 +182,8 @@ Report.updateStationProgress = async function () {
   const total = Number(Report.current.qty);
   const hasTotal = isFinite(total) && total > 0;
   const left = hasTotal ? Math.max(0, total - done) : null;
+  // 記下來給「開始工作」判斷用：做滿了還要開，得先確認一次
+  Report._stProgress = { station, done, total: hasTotal ? total : null, full: hasTotal && left === 0 };
 
   let cls = "go", txt;
   if (!hasTotal) {
@@ -312,6 +315,12 @@ Report.start = async function () {
   let station = $("#selStation").value;
   if (station === "__new__") station = $("#inNewStation").value.trim();
   if (!station) return toast(t("select_station"), "err");
+  // 這一站已經做滿工單數量了還要開工，多半是選錯站或補做／重工，先確認一次。
+  // 不硬擋——退貨重工、補做都是現場真的會發生的事。
+  const p = Report._stProgress;
+  if (p && p.full && p.station === station) {
+    if (!confirm(t("st_full_ask", { st: station, n: p.done, t: p.total }))) return;
+  }
   let machine = $("#selMachine").value;
   if (machine === "__new__") machine = $("#inNewMachine").value.trim();
   const { data, error } = await sb.rpc("start_job", {
