@@ -465,10 +465,7 @@ Report.tick = function () {
 
 Report.action = async function (id, act) {
   if (act === "pause") {
-    const { error } = await sb.rpc("pause_job", { p_job_id: id });
-    if (error) return toast(friendlyErr(error), "err");
-    await Report.loadRunning();
-    if (window.Home) Home.refreshIfActive();
+    Report.openPause(id);
   } else if (act === "resume") {
     const { error } = await sb.rpc("resume_job", { p_job_id: id });
     if (error) return toast(friendlyErr(error), "err");
@@ -477,6 +474,55 @@ Report.action = async function (id, act) {
   } else if (act === "finish") {
     Report.openFinish(id);
   }
+};
+
+// 暫停原因：先問原因再暫停。有原因才統計得出「停機主因」。
+// 原因寫進 job_pauses（透過 log_pause_reason RPC）；那張表還沒建的話
+// 暫停照樣成功，只是這次沒有原因可統計，不會擋住現場。
+// code 是存進資料庫的值（固定中文，方便統計）；k 是顯示用的翻譯 key
+Report.PAUSE_REASONS = [
+  { code: "待料", k: "pr_wait" }, { code: "換線/換模", k: "pr_setup" },
+  { code: "設備故障", k: "pr_break" }, { code: "品質調機", k: "pr_tune" },
+  { code: "計畫保養", k: "pr_maint" }, { code: "其他", k: "pr_other" },
+];
+
+Report.openPause = function (id) {
+  $("#pauseJobId").value = id;
+  Report._pauseReason = null;
+  $("#pauseOther").value = "";
+  $("#pauseOther").classList.add("hide");
+  $("#pauseReasons").innerHTML = Report.PAUSE_REASONS
+    .map((r) => `<button type="button" class="btn ghost pause-r" data-r="${r.code}">${t(r.k)}</button>`).join("");
+  $$("#pauseReasons .pause-r").forEach((b) => {
+    b.onclick = () => {
+      Report._pauseReason = b.dataset.r;
+      $$("#pauseReasons .pause-r").forEach((x) => x.classList.toggle("sel", x === b));
+      $("#pauseOther").classList.toggle("hide", b.dataset.r !== "其他");
+      if (b.dataset.r === "其他") $("#pauseOther").focus();
+    };
+  });
+  $("#pauseModal").classList.remove("hide");
+  $("#btnPauseCancel").onclick = () => $("#pauseModal").classList.add("hide");
+  $("#btnPauseConfirm").onclick = Report.confirmPause;
+};
+
+Report.confirmPause = async function () {
+  const id = $("#pauseJobId").value;
+  let reason = Report._pauseReason;
+  if (!reason) return toast(t("pause_pick"), "err");
+  if (reason === "其他") {
+    const txt = $("#pauseOther").value.trim();
+    if (!txt) { $("#pauseOther").focus(); return toast(t("pause_pick"), "err"); }
+    reason = txt;
+  }
+  const { error } = await sb.rpc("pause_job", { p_job_id: id });
+  if (error) return toast(friendlyErr(error), "err");
+  // 原因記錄失敗不影響暫停本身（例如 job_pauses 還沒建）
+  try { await sb.rpc("log_pause_reason", { p_job_id: id, p_reason: reason }); } catch (e) { /* 忽略 */ }
+  $("#pauseModal").classList.add("hide");
+  toast(t("ok"), "ok");
+  await Report.loadRunning();
+  if (window.Home) Home.refreshIfActive();
 };
 
 // 結束報工小視窗

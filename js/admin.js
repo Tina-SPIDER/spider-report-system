@@ -107,7 +107,7 @@ Admin.loadMachine = async function () {
   const toNext = new Date(to + "T00:00:00"); toNext.setDate(toNext.getDate() + 1);
 
   const { data, error } = await sb.from("jobs")
-    .select("machine,station,work_minutes,paused_minutes,qty,scrap_qty,start_at,status")
+    .select("id,machine,station,work_minutes,paused_minutes,qty,scrap_qty,start_at,status")
     .eq("status", "done")
     .gte("start_at", from + "T00:00:00").lt("start_at", toNext.toISOString())
     .order("start_at", { ascending: false }).limit(5000);
@@ -119,15 +119,36 @@ Admin.loadMachine = async function () {
     const key0 = by === "machine" ? (j.machine || t("unspecified")) : (j.station || t("unspecified"));
     const day = fmtDate(j.start_at);
     const k = key0 + "|" + day;
-    if (!m.has(k)) m.set(k, { name: key0, day, run: 0, down: 0, good: 0, bad: 0, jobs: 0 });
+    if (!m.has(k)) m.set(k, { name: key0, day, run: 0, paused: 0, good: 0, bad: 0, jobs: 0 });
     const x = m.get(k);
     x.run += Number(j.work_minutes) || 0;
-    x.down += Number(j.paused_minutes) || 0;
+    x.paused += Number(j.paused_minutes) || 0;
     x.good += Number(j.qty) || 0;
     x.bad += Number(j.scrap_qty) || 0;
     x.jobs++;
   });
   let rows = [...m.values()].sort((a, b) => b.day.localeCompare(a.day) || a.name.localeCompare(b.name));
+
+  // 停機主因：從 job_pauses 統計每個(對象,日期)出現最多次的原因。
+  // 那張表還沒建時整段跳過，欄位就維持「—」。
+  Admin._mcReasons = {};
+  const idMap = {};
+  (data || []).forEach((j) => (idMap[j.id] = (by === "machine" ? (j.machine || t("unspecified")) : (j.station || t("unspecified"))) + "|" + fmtDate(j.start_at)));
+  const ids = Object.keys(idMap);
+  if (ids.length) {
+    const { data: ps, error: pe } = await sb.from("job_pauses").select("job_id,reason").in("job_id", ids.slice(0, 1000));
+    if (!pe) {
+      const tally = {};
+      (ps || []).forEach((p) => {
+        const k = idMap[p.job_id];
+        if (!k) return;
+        (tally[k] = tally[k] || {})[p.reason] = ((tally[k] || {})[p.reason] || 0) + 1;
+      });
+      Object.entries(tally).forEach(([k, obj]) => {
+        Admin._mcReasons[k] = Object.entries(obj).sort((a, b) => b[1] - a[1])[0][0];
+      });
+    }
+  }
 
   // 篩選下拉（保留目前選擇）
   const names = [...new Set(rows.map((r) => r.name))].sort();
@@ -154,19 +175,26 @@ Admin.loadMachine = async function () {
   };
   const head = `<tr>
     <th>${by === "machine" ? t("machine") : t("station")}</th><th>${t("date")}</th>
-    <th class="r">${t("mc_plan")}</th><th class="r">${t("mc_down")}</th><th class="r">${t("mc_run")}</th>
+    <th class="r">${t("mc_plan")}</th><th class="r">${t("mc_down")}</th><th class="r">${t("mc_paused")}</th>
+    <th class="r">${t("mc_run")}</th>
     <th class="r">${t("mc_good")}</th><th class="r">${t("mc_bad")}</th><th class="r">${t("mc_out")}</th>
     <th>${t("mc_reason")}</th>
     <th class="r">${t("mc_a")}</th><th class="r">${t("mc_p")}</th><th class="r">${t("mc_q")}</th><th class="r">${t("mc_oee")}</th></tr>`;
   const body = rows.map((x) => {
     const out = x.good + x.bad;
+    // 停機 = 計畫 − 實際運轉。paused_minutes 只是「有按暫停」的那一部分，
+    // 沒人開工單的空檔不會出現在裡面，所以兩者要分開看。
+    const down = Math.max(0, plan - x.run);
     const a = Math.min(100, x.run / plan * 100);
     const q = out > 0 ? (x.good / out * 100) : null;
+    const reason = (Admin._mcReasons || {})[x.name + "|" + x.day];
     return `<tr>
       <td>${x.name}</td><td>${x.day}</td>
-      <td class="r">${plan}</td><td class="r">${Math.round(x.down)}</td><td class="r">${Math.round(x.run)}</td>
+      <td class="r">${plan}</td>
+      <td class="r">${Math.round(down)}</td><td class="r muted">${Math.round(x.paused)}</td>
+      <td class="r">${Math.round(x.run)}</td>
       <td class="r">${x.good}</td><td class="r">${x.bad}</td><td class="r">${out}</td>
-      <td class="muted">—</td>
+      <td>${reason ? `<span class="badge warn">${reason}</span>` : `<span class="muted">—</span>`}</td>
       ${pctCell(a)}${pctCell(null)}${pctCell(q)}${pctCell(null)}</tr>`;
   }).join("");
   $("#machineTable").innerHTML = `<table>${head}${body}</table>`;
@@ -192,10 +220,12 @@ Admin.exportMachine = function () {
   if (!rows.length) return toast(t("no_data"), "err");
   const plan = Admin._mcPlan || 480;
   const by = $("#mcBy").value === "machine" ? t("machine") : t("station");
-  const aoa = [[by, t("date"), t("mc_plan"), t("mc_down"), t("mc_run"), t("mc_good"), t("mc_bad"), t("mc_out"), t("mc_a"), t("mc_q")]];
+  const aoa = [[by, t("date"), t("mc_plan"), t("mc_down"), t("mc_paused"), t("mc_run"),
+    t("mc_good"), t("mc_bad"), t("mc_out"), t("mc_reason"), t("mc_a"), t("mc_q")]];
   rows.forEach((x) => {
     const out = x.good + x.bad;
-    aoa.push([x.name, x.day, plan, Math.round(x.down), Math.round(x.run), x.good, x.bad, out,
+    aoa.push([x.name, x.day, plan, Math.round(Math.max(0, plan - x.run)), Math.round(x.paused), Math.round(x.run),
+      x.good, x.bad, out, (Admin._mcReasons || {})[x.name + "|" + x.day] || "",
       Number(Math.min(100, x.run / plan * 100).toFixed(1)), out > 0 ? Number((x.good / out * 100).toFixed(1)) : ""]);
   });
   const wb = XLSX.utils.book_new();

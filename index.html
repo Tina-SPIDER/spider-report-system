@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=53">
+  <link rel="stylesheet" href="css/style.css?v=54">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=53" class="header-logo" alt="logo">
+    <img src="logo.png?v=54" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=53" class="login-logo" alt="logo">
+        <img src="logo.png?v=54" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -518,6 +518,22 @@
     </div>
   </div>
 
+  <!-- 暫停原因 Modal -->
+  <div id="pauseModal" class="modal hide">
+    <div class="modal-card">
+      <h3 data-i18n="pause_title">暫停原因</h3>
+      <input type="hidden" id="pauseJobId">
+      <p class="muted" style="font-size:14px;margin:0 0 10px" data-i18n="pause_hint">選一個原因，之後才能統計停機主因</p>
+      <div id="pauseReasons" class="pause-reasons"></div>
+      <input id="pauseOther" class="hide" data-i18n-ph="pause_other_ph" placeholder="請說明原因" style="margin-top:8px">
+      <div style="height:14px"></div>
+      <div class="row">
+        <button id="btnPauseCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+        <button id="btnPauseConfirm" class="btn primary grow" data-i18n="pause">暫停</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 結束報工 Modal -->
   <div id="finishModal" class="modal hide">
     <div class="modal-card">
@@ -577,18 +593,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=53"></script>
-  <script src="js/i18n.js?v=53"></script>
-  <script src="js/auth.js?v=53"></script>
-  <script src="js/report.js?v=53"></script>
-  <script src="js/incident.js?v=53"></script>
-  <script src="js/todo.js?v=53"></script>
-  <script src="js/home.js?v=53"></script>
-  <script src="js/score.js?v=53"></script>
-  <script src="js/admin.js?v=53"></script>
-  <script src="js/scoreplan.js?v=53"></script>
-  <script src="js/calendar.js?v=53"></script>
-  <script src="js/nav.js?v=53"></script>
-  <script src="js/notify.js?v=53"></script>
+  <script src="js/config.js?v=54"></script>
+  <script src="js/i18n.js?v=54"></script>
+  <script src="js/auth.js?v=54"></script>
+  <script src="js/report.js?v=54"></script>
+  <script src="js/incident.js?v=54"></script>
+  <script src="js/todo.js?v=54"></script>
+  <script src="js/home.js?v=54"></script>
+  <script src="js/score.js?v=54"></script>
+  <script src="js/admin.js?v=54"></script>
+  <script src="js/scoreplan.js?v=54"></script>
+  <script src="js/calendar.js?v=54"></script>
+  <script src="js/nav.js?v=54"></script>
+  <script src="js/notify.js?v=54"></script>
 </body>
 </html>
