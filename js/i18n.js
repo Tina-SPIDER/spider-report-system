@@ -41,9 +41,9 @@ window.I18N = {
     home_no_wo: "今天沒有要做的工單 👍", home_no_todo: "今天沒有待辦 👍",
     home_overdue: "逾期", home_today: "今天", home_no_date: "未指定日期",
     home_mark_done: "完成", home_future_n: "另有 {n} 張工單，日期在今天之後",
-    home_target: "本月目標", home_no_target: "尚未設定本月目標（請主管在「員工管理」設定）",
-    home_month_got: "本月已得 {n} 分", home_target_hit: "🎉 已達成本月目標",
-    home_target_gap: "還差 {n} 分達標", home_target_tip: "本月目標分數（原型，存在瀏覽器）",
+    home_target: "本月績效目標", home_no_target: "尚未設定本月績效目標（請主管在「員工管理」設定）",
+    home_month_got: "本月已得 {n} 分", home_target_hit: "🎉 已達成本月績效目標",
+    home_target_gap: "還差 {n} 分達標", home_target_tip: "本月績效目標分數（原型，存在瀏覽器）",
     proto: "原型", refresh: "重新整理",
 
     // 計分比例（原型）
@@ -214,8 +214,8 @@ window.I18N = {
     home_no_wo: "Hôm nay không có đơn 👍", home_no_todo: "Hôm nay không có việc 👍",
     home_overdue: "Quá hạn", home_today: "Hôm nay", home_no_date: "Chưa định ngày",
     home_mark_done: "Xong", home_future_n: "Còn {n} đơn có ngày sau hôm nay",
-    home_target: "Mục tiêu tháng", home_no_target: "Chưa đặt mục tiêu tháng này (quản lý đặt ở \"Quản lý NV\")",
-    home_month_got: "Tháng này được {n} điểm", home_target_hit: "🎉 Đã đạt mục tiêu tháng",
+    home_target: "Mục tiêu thành tích tháng", home_no_target: "Chưa đặt mục tiêu thành tích tháng này (quản lý đặt ở \"Quản lý NV\")",
+    home_month_got: "Tháng này được {n} điểm", home_target_hit: "🎉 Đã đạt mục tiêu thành tích tháng",
     home_target_gap: "Còn thiếu {n} điểm", home_target_tip: "Điểm mục tiêu tháng (bản thử, lưu ở trình duyệt)",
     proto: "Bản thử", refresh: "Làm mới",
 
