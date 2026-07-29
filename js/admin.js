@@ -25,8 +25,125 @@ Admin.render = function () {
   else if (Admin.tab === "wo") Admin.initWoImport();
   else if (Admin.tab === "rules") Admin.loadRules();
   else if (Admin.tab === "overview") Admin.loadOverview();
+  else if (Admin.tab === "ship") Admin.initShip();
   else if (Admin.tab === "download") Admin.initDownload();
   else if (Admin.tab === "scoreplan") ScorePlan.render();
+};
+
+// ---------- 出貨確認 ----------
+// 最後一站做滿數量只代表「可以出貨」，不代表真的出了（可能等客戶通知、等湊整批），
+// 所以要主管按確認才算數。日期預設帶最後一站的完成日，可以改。
+Admin.initShip = function () {
+  $("#btnShQuery").onclick = Admin.loadShip;
+  $("#shFilter").onchange = Admin.loadShip;
+  Admin.loadShip();
+};
+
+Admin.loadShip = async function () {
+  const mode = $("#shFilter").value || "ready";
+  const box = $("#shTable");
+
+  // shipped_at 欄位還沒建的話，整頁改成提示而不是壞掉
+  let probe = await sb.from("work_orders").select("shipped_at").limit(1);
+  if (probe.error) {
+    $("#shCount").textContent = "";
+    box.innerHTML = `<p class="proto-note">${t("ship_no_col")}</p>`;
+    return;
+  }
+
+  const { data: wos, error } = await sb.from("work_orders")
+    .select("work_order_no,customer,product_name,qty,shipped_at")
+    .order("work_order_no", { ascending: false }).limit(2000);
+  if (error) return toast(t("err") + ": " + error.message, "err");
+  const all = wos || [];
+
+  if (mode === "shipped") {
+    const rows = all.filter((w) => w.shipped_at)
+      .sort((a, b) => String(b.shipped_at).localeCompare(String(a.shipped_at)));
+    return Admin.paintShip(rows, {}, true);
+  }
+
+  // 未出貨的工單，判斷「最後一站是否做滿」
+  const pend = all.filter((w) => !w.shipped_at);
+  const nos = pend.map((w) => w.work_order_no);
+  const ready = {};
+  for (const part of [nos.slice(0, 1000)]) {
+    if (!part.length) break;
+    const [{ data: routes }, { data: jobs }] = await Promise.all([
+      sb.from("work_order_routes").select("work_order_no,seq,station").in("work_order_no", part),
+      sb.from("jobs").select("work_order_no,station,qty,end_at,status").eq("status", "done").in("work_order_no", part),
+    ]);
+    const lastOf = {};
+    (routes || []).forEach((r) => {
+      const cur = lastOf[r.work_order_no];
+      if (!cur || Number(r.seq) > Number(cur.seq)) lastOf[r.work_order_no] = r;
+    });
+    const dq = {}, da = {};
+    (jobs || []).forEach((j) => {
+      const k = j.work_order_no + "|" + j.station;
+      dq[k] = (dq[k] || 0) + (Number(j.qty) || 0);
+      if (!da[k] || new Date(j.end_at) > new Date(da[k])) da[k] = j.end_at;
+    });
+    pend.forEach((w) => {
+      const last = lastOf[w.work_order_no];
+      if (!last) return;
+      const k = w.work_order_no + "|" + last.station;
+      if (!(k in dq)) return;
+      const total = Number(w.qty);
+      const ok = (isFinite(total) && total > 0) ? dq[k] >= total : true;
+      if (ok) ready[w.work_order_no] = { station: last.station, at: da[k], done: dq[k] };
+    });
+  }
+
+  const rows = mode === "ready" ? pend.filter((w) => ready[w.work_order_no]) : pend;
+  Admin.paintShip(rows, ready, false);
+};
+
+Admin.paintShip = function (rows, ready, isShipped) {
+  $("#shCount").textContent = t("jobs_total", { n: rows.length });
+  const box = $("#shTable");
+  if (!rows.length) { box.innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  const today = fmtDate(new Date());
+  const head = `<tr><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th>
+    <th class="r">${t("wo_qty")}</th><th>${t("ship_last")}</th><th>${t("ship_done_at")}</th>
+    <th>${t("status")}</th><th>${t("actions")}</th></tr>`;
+  const body = rows.map((w) => {
+    const rd = (ready || {})[w.work_order_no];
+    const doneAt = rd && rd.at ? fmtDate(rd.at) : "";
+    const badge = w.shipped_at
+      ? `<span class="badge go">${t("ship_done")} ${w.shipped_at}</span>`
+      : rd ? `<span class="badge warn">${t("ship_ready")}</span>`
+      : `<span class="badge mute">${t("ship_making")}</span>`;
+    const act = w.shipped_at
+      ? `<button class="btn small danger" data-unship="${w.work_order_no}">${t("ship_cancel")}</button>`
+      : `<span class="row" style="gap:6px;flex-wrap:nowrap">
+           <input type="date" class="cell" value="${doneAt || today}" data-shd="${w.work_order_no}" style="width:150px">
+           <button class="btn small go" data-ship="${w.work_order_no}">${t("ship_confirm")}</button></span>`;
+    return `<tr><td>${w.work_order_no}</td><td>${w.customer || ""}</td><td>${w.product_name || ""}</td>
+      <td class="r">${w.qty != null ? w.qty : ""}</td><td>${rd ? rd.station : ""}</td><td>${doneAt}</td>
+      <td>${badge}</td><td>${act}</td></tr>`;
+  }).join("");
+  box.innerHTML = `<table>${head}${body}</table>`;
+
+  $$("#shTable button[data-ship]").forEach((b) => {
+    b.onclick = async () => {
+      const wo = b.dataset.ship;
+      const d = document.querySelector(`#shTable input[data-shd="${wo}"]`).value || fmtDate(new Date());
+      const { error } = await sb.rpc("set_wo_shipped", { p_wo: wo, p_date: d });
+      if (error) return toast(friendlyErr(error), "err");
+      toast(t("ship_ok", { wo, d }), "ok");
+      Admin.loadShip();
+    };
+  });
+  $$("#shTable button[data-unship]").forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm(t("ship_cancel_ask"))) return;
+      const { error } = await sb.rpc("set_wo_shipped", { p_wo: b.dataset.unship, p_date: null });
+      if (error) return toast(friendlyErr(error), "err");
+      toast(t("saved"), "ok");
+      Admin.loadShip();
+    };
+  });
 };
 
 // ---------- 一鍵下載全部資料 ----------

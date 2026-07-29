@@ -70,38 +70,18 @@ Score.renderMine = async function () {
   $("#myScoreTable").innerHTML = `<table>${head}${body}</table>`;
 };
 
-// 每張工單是否已「出貨」＝最後一站做滿數量（沒有總數量時，該站有完成紀錄就算）
+// 是否已出貨＝主管在「出貨確認」按過確認（work_orders.shipped_at 有值）。
+// 「最後一站做滿」只代表可以出貨，不代表真的出了（可能等客戶通知、等湊整批），
+// 所以認列業績要以人工確認為準。
 Score.shippedMap = async function (nos) {
   Score.woMap = {};
   if (!nos.length) return {};
-  const [{ data: wos }, { data: routes }, { data: jobs }] = await Promise.all([
-    sb.from("work_orders").select("*").in("work_order_no", nos),
-    sb.from("work_order_routes").select("work_order_no,seq,station").in("work_order_no", nos),
-    sb.from("jobs").select("work_order_no,station,qty,end_at,status").eq("status", "done").in("work_order_no", nos),
-  ]);
+  const { data: wos } = await sb.from("work_orders").select("*").in("work_order_no", nos);
   (wos || []).forEach((w) => (Score.woMap[w.work_order_no] = w));
 
-  const lastOf = {};
-  (routes || []).forEach((r) => {
-    const cur = lastOf[r.work_order_no];
-    if (!cur || Number(r.seq) > Number(cur.seq)) lastOf[r.work_order_no] = r;
-  });
-  const doneQty = {}, doneAt = {};
-  (jobs || []).forEach((j) => {
-    const k = j.work_order_no + "|" + j.station;
-    doneQty[k] = (doneQty[k] || 0) + (Number(j.qty) || 0);
-    if (!doneAt[k] || new Date(j.end_at) > new Date(doneAt[k])) doneAt[k] = j.end_at;
-  });
-
   const out = {};
-  nos.forEach((no) => {
-    const last = lastOf[no];
-    if (!last) return;
-    const k = no + "|" + last.station;
-    if (!(k in doneQty)) return;                       // 最後一站還沒人報工
-    const total = Number((Score.woMap[no] || {}).qty);
-    const ok = (isFinite(total) && total > 0) ? doneQty[k] >= total : true;
-    if (ok) out[no] = { at: doneAt[k], station: last.station };
+  (wos || []).forEach((w) => {
+    if (w.shipped_at) out[w.work_order_no] = { at: w.shipped_at };
   });
   return out;
 };

@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=58">
+  <link rel="stylesheet" href="css/style.css?v=59">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=58" class="header-logo" alt="logo">
+    <img src="logo.png?v=59" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=58" class="login-logo" alt="logo">
+        <img src="logo.png?v=59" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -326,6 +326,24 @@
           </div>
         </div>
 
+        <!-- 出貨確認 -->
+        <div id="pane-ship" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_ship">出貨確認</h3>
+            <p class="muted" style="font-size:14px" data-i18n="ship_hint"></p>
+            <div class="row">
+              <select id="shFilter" class="grow">
+                <option value="ready" data-i18n="ship_f_ready">待確認（最後一站已完成）</option>
+                <option value="shipped" data-i18n="ship_f_shipped">已出貨</option>
+                <option value="all" data-i18n="ship_f_all">全部未出貨</option>
+              </select>
+              <button id="btnShQuery" class="btn primary" data-i18n="query">查詢</button>
+            </div>
+            <div id="shCount" class="muted" style="font-size:14px;margin-top:10px"></div>
+            <div id="shTable" style="overflow-x:auto;margin-top:6px"></div>
+          </div>
+        </div>
+
         <!-- 報工紀錄 -->
         <div id="pane-jobs" class="admin-pane hide">
           <div class="card">
@@ -596,18 +614,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=58"></script>
-  <script src="js/i18n.js?v=58"></script>
-  <script src="js/auth.js?v=58"></script>
-  <script src="js/report.js?v=58"></script>
-  <script src="js/incident.js?v=58"></script>
-  <script src="js/todo.js?v=58"></script>
-  <script src="js/home.js?v=58"></script>
-  <script src="js/score.js?v=58"></script>
-  <script src="js/admin.js?v=58"></script>
-  <script src="js/scoreplan.js?v=58"></script>
-  <script src="js/calendar.js?v=58"></script>
-  <script src="js/nav.js?v=58"></script>
-  <script src="js/notify.js?v=58"></script>
+  <script src="js/config.js?v=59"></script>
+  <script src="js/i18n.js?v=59"></script>
+  <script src="js/auth.js?v=59"></script>
+  <script src="js/report.js?v=59"></script>
+  <script src="js/incident.js?v=59"></script>
+  <script src="js/todo.js?v=59"></script>
+  <script src="js/home.js?v=59"></script>
+  <script src="js/score.js?v=59"></script>
+  <script src="js/admin.js?v=59"></script>
+  <script src="js/scoreplan.js?v=59"></script>
+  <script src="js/calendar.js?v=59"></script>
+  <script src="js/nav.js?v=59"></script>
+  <script src="js/notify.js?v=59"></script>
 </body>
 </html>
