@@ -78,7 +78,17 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.7)}
 #nav{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;margin-bottom:16px;
   display:flex;flex-direction:column;gap:10px}
 .nav-group{display:flex;flex-direction:column;gap:3px}
-.nav-glabel{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.5px;padding:6px 8px 2px}
+.nav-glabel{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;
+  border:0;background:transparent;cursor:pointer;text-align:left;
+  font-size:15px;color:var(--txt);font-weight:700;letter-spacing:.3px;padding:10px 10px;border-radius:8px}
+.nav-glabel:hover{background:rgba(255,255,255,.06)}
+.nav-gtext{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-caret{flex:none;color:var(--muted);font-size:12px;transition:transform .18s}
+.nav-group.open > .nav-glabel{color:#7ee2a0}
+.nav-group.open .nav-caret{transform:rotate(90deg);color:#7ee2a0}
+.nav-items{display:none;flex-direction:column;gap:3px;padding-left:10px;
+  border-left:2px solid var(--line);margin:2px 0 4px 12px}
+.nav-group.open .nav-items{display:flex}
 .nav-item{border:0;background:transparent;padding:10px 12px;border-radius:8px;cursor:pointer;font-size:16px;
   color:var(--txt);text-align:left;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nav-item:hover{background:rgba(255,255,255,.06)}
