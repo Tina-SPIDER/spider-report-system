@@ -73,6 +73,7 @@ Home.loadWos = async function () {
   });
 
   const rank = { over: 0, today: 1, none: 2 };
+  Home.data.woDone = 0;
   Home.data.wos = list.map((a) => {
     const w = wMap[a.work_order_no] || {};
     const when = !a.due_date ? "none" : (a.due_date < today ? "over" : "today");
@@ -82,7 +83,8 @@ Home.loadWos = async function () {
     // 只有「數量做滿」才算完成；沒有總數就一律不標完成，免得分批做的被誤判
     const finished = !!(a.station && hasTotal && doneQty >= total);
     return { ...a, customer: w.customer, product_name: w.product_name, when, finished, doneQty, total: hasTotal ? total : null };
-  }).sort((x, y) => (x.finished - y.finished) || (rank[x.when] - rank[y.when]));
+  }).filter((a) => { if (a.finished) { Home.data.woDone++; return false; } return true; })   // 做完的不用再擋在看板上
+    .sort((x, y) => rank[x.when] - rank[y.when]);
 };
 
 // 待辦 → 待辦多半不是一天能做完的，所以不用日期篩，
@@ -224,8 +226,12 @@ Home.paintRunning = function () {
 Home.paintWos = function () {
   const box = $("#homeWo");
   const list = Home.data.wos;
-  const more = Home.data.future
-    ? `<p class="muted" style="font-size:14px;margin:10px 0 0">${t("home_future_n", { n: Home.data.future })}</p>` : "";
+  const notes = [
+    Home.data.woDone ? t("as_done_hidden", { n: Home.data.woDone }) : "",
+    Home.data.future ? t("home_future_n", { n: Home.data.future }) : "",
+  ].filter(Boolean);
+  const more = notes.length
+    ? `<p class="muted" style="font-size:14px;margin:10px 0 0">${notes.join("　·　")}</p>` : "";
   if (!list.length) { box.innerHTML = `<p class="muted">${t("home_no_wo")}</p>` + more; return; }
 
   box.innerHTML = list.map((a) => {

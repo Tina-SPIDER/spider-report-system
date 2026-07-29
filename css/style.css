@@ -30,7 +30,10 @@ body{font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;background
 
 /* 頂列 */
 header{position:sticky;top:0;z-index:20;background:var(--surface);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
-header h1{font-size:22px;margin:0;flex:1;font-weight:700}
+/* min-width:0 很重要：沒有它，flex 子項不會縮到比內容窄，
+   標題就會被擠成一個字一行 */
+header h1{font-size:22px;margin:0;flex:1;min-width:0;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .header-logo{height:34px;background:#fff;padding:3px 7px;border-radius:6px;margin-right:6px;flex:none}
 .login-logo{display:block;width:78%;max-width:240px;margin:0 auto 18px;background:#fff;padding:8px;border-radius:8px}
 .lang-switch button{background:rgba(255,255,255,.09);color:#fff;border:1px solid var(--line);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:14px;margin-left:4px}
@@ -311,8 +314,21 @@ tr.warn-row td{background:rgba(248,113,113,.13);color:#fca5a5;font-weight:600}
 .proto-tag{background:rgba(251,191,36,.15);color:#fcd34d;border:1px solid rgba(251,191,36,.4);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700;vertical-align:middle}
 .proto-note{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);color:#fcd34d;border-radius:8px;padding:9px 12px;font-size:14px;margin:0 0 10px}
 
+/* 手機頁首：標題藏起來（logo 已足以識別），只留真正會按的東西 */
+@media(max-width:640px){
+  header{gap:6px;padding:8px 10px}
+  header h1{display:none}
+  .header-logo{height:28px;padding:2px 5px;margin:0 auto 0 0}
+  #btnTools{display:none !important}          /* 主管的下載工具，手機用不到 */
+  .lang-switch{display:inline-flex;gap:3px}
+  .lang-switch button{margin:0;padding:5px 7px;font-size:13px}
+  #btnLogout{padding:5px 9px;font-size:14px}
+  #btnBell{padding:4px 8px;font-size:16px}
+  .menu-btn{padding:4px 9px;font-size:18px}
+  .bell-dot{top:-5px;right:-5px;min-width:16px;height:16px;font-size:10px}
+}
+
 @media(max-width:560px){
-  header h1{font-size:17px}
   #whoami{display:none}
   .stat{min-width:120px;padding:14px 10px}
   .stat .num{font-size:26px}

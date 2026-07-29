@@ -333,11 +333,47 @@ Report.loadAssignments = async function () {
   if (!box) return;
   const { data, error } = await sb.from("assignments").select("work_order_no,station,due_date,assigned_by").eq("employee_id", App.ME.id).order("due_date", { ascending: true, nullsFirst: false });
   if (error) { box.innerHTML = ""; return; }
-  const list = data || [];
+  let list = data || [];
   if (list.length === 0) { box.innerHTML = `<p class="muted">${t("no_assignments")}</p>`; return; }
-  const nos = list.map((a) => a.work_order_no);
-  const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name").in("work_order_no", nos);
+  const nos = [...new Set(list.map((a) => a.work_order_no))];
+  const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name,qty").in("work_order_no", nos);
   const map = {}; (wos || []).forEach((w) => (map[w.work_order_no] = w));
+
+  // 做完的指派就別再擋在清單上。判定跟後台一致：
+  //   有指定站別 → 自己在那一站做滿工單數量
+  //   沒指定站別 → 整張單的廠內站都做滿（各站顆數不能相加，那是同一批貨走不同站）
+  const [{ data: rts }, { data: js }] = await Promise.all([
+    sb.from("work_order_routes").select("work_order_no,station,station_type").in("work_order_no", nos),
+    sb.from("jobs").select("work_order_no,station,qty,status,employee_id").eq("status", "done").in("work_order_no", nos),
+  ]);
+  const mineQty = {}, anyQty = {};
+  (js || []).forEach((j) => {
+    const wk = j.work_order_no + "|" + (j.station || "");
+    anyQty[wk] = (anyQty[wk] || 0) + (Number(j.qty) || 0);
+    if (j.employee_id === App.ME.id) mineQty[wk] = (mineQty[wk] || 0) + (Number(j.qty) || 0);
+  });
+  const routeMap = {};
+  (rts || []).forEach((r) => { (routeMap[r.work_order_no] = routeMap[r.work_order_no] || []).push(r); });
+  const isDone = (a) => {
+    const total = Number((map[a.work_order_no] || {}).qty);
+    const hasTotal = isFinite(total) && total > 0;
+    if (a.station) {
+      const d = mineQty[a.work_order_no + "|" + a.station] || 0;
+      return hasTotal ? d >= total : d > 0;
+    }
+    const inhouse = (routeMap[a.work_order_no] || []).filter((r) => r.station_type !== "加工戶");
+    if (!inhouse.length) return false;
+    return inhouse.every((r) => {
+      const d = anyQty[a.work_order_no + "|" + r.station] || 0;
+      return hasTotal ? d >= total : d > 0;
+    });
+  };
+  const doneCount = list.filter(isDone).length;
+  list = list.filter((a) => !isDone(a));
+  if (list.length === 0) {
+    box.innerHTML = `<p class="muted">${t("no_assignments")}${doneCount ? "（" + t("as_done_hidden", { n: doneCount }) + "）" : ""}</p>`;
+    return;
+  }
   const ids = [...new Set(list.map((a) => a.assigned_by).filter(Boolean))];
   const aMap = {};
   if (ids.length) { const { data: es } = await sb.from("employees").select("id,name").in("id", ids); (es || []).forEach((e) => (aMap[e.id] = e.name)); }
@@ -353,7 +389,8 @@ Report.loadAssignments = async function () {
         <button class="btn small primary" data-wo="${wo}" data-st="${st}">${t("act_report")}</button></div>
       <div class="job-sub">${w.customer || ""} ${w.product_name || ""}${stTag}</div>
       ${dateTag || assigner ? `<div class="job-sub">${dateTag}${assigner}</div>` : ""}</div>`;
-  }).join("");
+  }).join("") + (doneCount
+    ? `<p class="muted" style="font-size:14px;margin:8px 0 0">${t("as_done_hidden", { n: doneCount })}</p>` : "");
   $$("#assignList button[data-wo]").forEach((b) => {
     b.onclick = async () => {
       $("#inWoNo").value = b.dataset.wo;
