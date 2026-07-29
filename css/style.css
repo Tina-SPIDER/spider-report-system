@@ -284,6 +284,12 @@ tr.warn-row td{background:rgba(248,113,113,.13);color:#fca5a5;font-weight:600}
   .cal-mini{display:none}                        /* 月檢視在手機只留數字 */
 }
 
+.cal-chip.movable{cursor:grab}
+.cal-chip.movable:active{cursor:grabbing}
+.cal-chip.dragging{opacity:.4}
+.cal-chip.manual{outline:1px dashed #fcd34d}
+.cal-col.drop-hot,.cal-cell.drop-hot{outline:2px dashed var(--go);background:rgba(34,197,94,.12)}
+.cal-mover{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
 .mc-plan{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
 .mc-plan input{width:90px}
 

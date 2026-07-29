@@ -31,7 +31,9 @@ window.I18N = {
     cal_no_date: "未排日期", cal_no_date_n: "另有 {n} 張工單沒有指定日期",
     cal_pick_day: "點日期看那天要做的工單",
     cal_day_empty: "這天沒有排工單", cal_n_wo: "共 {n} 張",
-    cal_mode_day: "日", cal_mode_week: "週", cal_mode_month: "月",
+    cal_manual: "人工調整", cal_manual_tip: "這張交期已由主管人工調整，ERP 匯入不會覆蓋",
+    cal_move_to: "改期至", cal_moved: "{wo} 已改到 {d}", cal_move_fail: "改期失敗",
+    cal_reset_erp: "交回 ERP", cal_reset_ask: "把這張工單的交期交回 ERP 管理？之後匯入會覆蓋成 ERP 的日期。",    cal_mode_day: "日", cal_mode_week: "週", cal_mode_month: "月",
     cal_src_mine: "我的指派", cal_src_due: "工單交期", cal_in_view: "目前檢視",
 
     // 我的看板
@@ -203,7 +205,9 @@ window.I18N = {
     cal_no_date: "Chưa xếp ngày", cal_no_date_n: "Còn {n} đơn chưa chỉ định ngày",
     cal_pick_day: "Bấm vào ngày để xem đơn hôm đó",
     cal_day_empty: "Ngày này không có đơn", cal_n_wo: "Tổng {n} đơn",
-    cal_mode_day: "Ngày", cal_mode_week: "Tuần", cal_mode_month: "Tháng",
+    cal_manual: "Chỉnh tay", cal_manual_tip: "Hạn giao này do quản lý chỉnh tay, ERP sẽ không ghi đè",
+    cal_move_to: "Đổi sang", cal_moved: "{wo} đã đổi sang {d}", cal_move_fail: "Đổi ngày thất bại",
+    cal_reset_erp: "Trả về ERP", cal_reset_ask: "Trả hạn giao đơn này về cho ERP quản lý? Lần nhập sau sẽ ghi đè theo ngày của ERP.",    cal_mode_day: "Ngày", cal_mode_week: "Tuần", cal_mode_month: "Tháng",
     cal_src_mine: "Được giao", cal_src_due: "Hạn giao", cal_in_view: "Đang xem",
 
     home_running: "Đang làm", home_wo: "Đơn cần làm hôm nay", home_todo: "Việc cần xong hôm nay",

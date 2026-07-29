@@ -51,11 +51,16 @@ Cal.load = async function () {
   // 2) 交期落在範圍內的工單
   let dueWos = [];
   if (Cal.srcDue) {
-    const { data } = await sb.from("work_orders")
-      .select("work_order_no,customer,product_name,qty,due_date")
-      .gte("due_date", sKey).lte("due_date", eKey)
-      .order("due_date").limit(2000);
-    dueWos = data || [];
+    // due_date_manual 欄位可能還沒建，沒有就退回不帶它的查詢
+    let res = await sb.from("work_orders")
+      .select("work_order_no,customer,product_name,qty,due_date,due_date_manual")
+      .gte("due_date", sKey).lte("due_date", eKey).order("due_date").limit(2000);
+    if (res.error) {
+      res = await sb.from("work_orders")
+        .select("work_order_no,customer,product_name,qty,due_date")
+        .gte("due_date", sKey).lte("due_date", eKey).order("due_date").limit(2000);
+    }
+    dueWos = res.data || [];
   }
 
   // 補齊指派工單的客戶/品名/數量
@@ -102,6 +107,7 @@ Cal.load = async function () {
     push(w.due_date, {
       type: "due", work_order_no: w.work_order_no, customer: w.customer,
       product_name: w.product_name, total: Number(w.qty) || null,
+      manual: !!w.due_date_manual,
     });
   });
 
@@ -145,11 +151,32 @@ Cal.paint = function () {
   Cal.bind();
 };
 
-Cal.chip = function (it) {
+// 只有主管能拖曳改期；員工看得到但拖不動
+Cal.canMove = function () { return App.ME && App.ME.role === "主管"; };
+
+Cal.chip = function (it, day) {
   const cls = it.type === "mine" ? "mine" : "due";
   const who = it.customer || "";
   const qty = it.total && it.total > 1 ? ` ×${it.total}` : "";
-  return `<span class="cal-chip ${cls}${it.finished ? " done" : ""}">${it.type === "mine" ? "📌" : "📅"} ${calEsc(who)} ${calEsc(it.work_order_no)}${qty}</span>`;
+  const drag = Cal.canMove()
+    ? ` draggable="true" data-wo="${calEsc(it.work_order_no)}" data-type="${it.type}" data-from="${day}"` : "";
+  return `<span class="cal-chip ${cls}${it.finished ? " done" : ""}${Cal.canMove() ? " movable" : ""}${it.manual ? " manual" : ""}"${drag}
+    title="${it.manual ? t("cal_manual_tip") : ""}">${it.type === "mine" ? "📌" : "📅"} ${calEsc(who)} ${calEsc(it.work_order_no)}${qty}${it.manual ? " ✎" : ""}</span>`;
+};
+
+// 真正寫入新日期
+Cal.move = async function (wo, type, toDay) {
+  if (!Cal.canMove()) return;
+  if (type === "mine") {
+    const { error } = await sb.from("assignments")
+      .update({ due_date: toDay }).eq("work_order_no", wo).eq("employee_id", App.ME.id);
+    if (error) return toast(friendlyErr(error), "err");
+  } else {
+    const { error } = await sb.rpc("set_wo_due_date", { p_wo: wo, p_date: toDay });
+    if (error) return toast(t("cal_move_fail") + "：" + friendlyErr(error), "err");
+  }
+  toast(t("cal_moved", { wo, d: toDay }), "ok");
+  await Cal.render();
 };
 
 Cal.paintMonth = function (todayKey, start) {
@@ -162,7 +189,7 @@ Cal.paintMonth = function (todayKey, start) {
     const show = items.slice(0, 2).map((it) =>
       `<span class="cal-mini ${it.type}">${calEsc(it.customer || it.work_order_no)}</span>`).join("");
     const more = items.length > 2 ? `<span class="cal-mini more">+${items.length - 2}</span>` : "";
-    cells.push(`<button class="cal-cell${d.getMonth() !== m ? " other" : ""}${key === todayKey ? " today" : ""}${Cal.sel === key ? " sel" : ""}" data-d="${key}">
+    cells.push(`<button class="cal-cell${d.getMonth() !== m ? " other" : ""}${key === todayKey ? " today" : ""}${Cal.sel === key ? " sel" : ""}" data-d="${key}" data-drop="${key}">
       <span class="cal-d">${d.getDate()}${items.length ? `<span class="cal-n">${items.length}</span>` : ""}</span>
       ${show}${more}</button>`);
   }
@@ -177,11 +204,11 @@ Cal.paintList = function (todayKey, s, e) {
   for (let d = new Date(s); d <= e; d = calAdd(d, 1)) {
     const key = calKey(d);
     const items = Cal.byDay[key] || [];
-    days.push(`<div class="cal-col${key === todayKey ? " today" : ""}">
+    days.push(`<div class="cal-col${key === todayKey ? " today" : ""}" data-drop="${key}">
       <div class="cal-colhead">${key.slice(5)} ${t("wd" + d.getDay())}
         ${items.length ? `<span class="cal-n">${items.length}</span>` : ""}</div>
       <div class="cal-colbody">${items.length
-        ? items.map((it) => Cal.chip(it)).join("")
+        ? items.map((it) => Cal.chip(it, key)).join("")
         : `<span class="muted" style="font-size:13px">—</span>`}</div></div>`);
   }
   $("#calGrid").innerHTML = `<div class="cal-cols ${Cal.mode}">${days.join("")}</div>`;
@@ -215,15 +242,34 @@ Cal.paintDay = function () {
     const tag = a.type === "mine"
       ? `<span class="badge go">📌 ${t("cal_src_mine")}</span>`
       : `<span class="badge mute">📅 ${t("cal_src_due")}</span>`;
+    const manualTag = a.manual ? `<span class="badge warn">✎ ${t("cal_manual")}</span>` : "";
+    // 手機拖不動，主管在這裡直接改日期
+    const mover = Cal.canMove()
+      ? `<div class="job-sub cal-mover">${t("cal_move_to")}
+           <input type="date" value="${key}" data-mv="${calEsc(a.work_order_no)}" data-mvtype="${a.type}" style="width:160px">
+           ${a.manual && a.type === "due" ? `<button class="btn small ghost" data-reset="${calEsc(a.work_order_no)}">${t("cal_reset_erp")}</button>` : ""}
+         </div>` : "";
     return `<div class="job-card${a.finished ? " home-done" : ""}" style="border-left-color:${a.type === "mine" ? "var(--go)" : "var(--c1)"}">
       <div class="job-head"><strong>${calEsc(a.customer || "")} ${calEsc(a.work_order_no)}</strong>
         <button class="btn small ${a.finished ? "ghost" : "primary"}" data-wo="${calEsc(a.work_order_no)}" data-st="${calEsc(a.station || "")}">${t("act_report")}</button></div>
       <div class="job-sub">${calEsc(a.product_name || "")}${stTag}</div>
-      <div class="job-sub">${tag} ${qtyTag} ${prog}</div></div>`;
+      <div class="job-sub">${tag} ${manualTag} ${qtyTag} ${prog}</div>${mover}</div>`;
   }).join("");
 
   $$("#calDay button[data-wo]").forEach((b) => {
     b.onclick = () => { Report._pendingWo = { wo: b.dataset.wo, st: b.dataset.st }; App.go("report"); };
+  });
+  $$("#calDay input[data-mv]").forEach((inp) => {
+    inp.onchange = () => { if (inp.value && inp.value !== key) Cal.move(inp.dataset.mv, inp.dataset.mvtype, inp.value); };
+  });
+  $$("#calDay button[data-reset]").forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm(t("cal_reset_ask"))) return;
+      const { error } = await sb.rpc("set_wo_due_date", { p_wo: b.dataset.reset, p_date: null });
+      if (error) return toast(friendlyErr(error), "err");
+      toast(t("saved"), "ok");
+      await Cal.render();
+    };
   });
 };
 
@@ -251,5 +297,32 @@ Cal.bind = function () {
   $$("#calGrid .cal-col").forEach((col, i) => {
     const head = col.querySelector(".cal-colhead");
     if (head) head.onclick = () => { Cal.sel = calKey(calAdd(Cal.range().s, i)); Cal.paintDay(); };
+  });
+  Cal.bindDrag();
+};
+
+// 拖曳改期（主管限定）。手機拖不動 HTML5 DnD，所以下方明細另外給日期欄。
+Cal.bindDrag = function () {
+  if (!Cal.canMove()) return;
+  $$("#calGrid [data-wo]").forEach((el) => {
+    el.ondragstart = (e) => {
+      Cal._drag = { wo: el.dataset.wo, type: el.dataset.type, from: el.dataset.from };
+      el.classList.add("dragging");
+      try { e.dataTransfer.setData("text/plain", el.dataset.wo); e.dataTransfer.effectAllowed = "move"; } catch (err) {}
+    };
+    el.ondragend = () => { el.classList.remove("dragging"); $$("#calGrid .drop-hot").forEach((x) => x.classList.remove("drop-hot")); };
+  });
+  $$("#calGrid [data-drop]").forEach((z) => {
+    z.ondragover = (e) => { e.preventDefault(); z.classList.add("drop-hot"); };
+    z.ondragleave = () => z.classList.remove("drop-hot");
+    z.ondrop = (e) => {
+      e.preventDefault();
+      z.classList.remove("drop-hot");
+      const d = Cal._drag; Cal._drag = null;
+      if (!d) return;
+      const to = z.dataset.drop;
+      if (!to || to === d.from) return;              // 拖回原地就當沒事
+      Cal.move(d.wo, d.type, to);
+    };
   });
 };
