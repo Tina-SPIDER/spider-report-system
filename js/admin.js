@@ -805,8 +805,10 @@ Admin.initAssign = async function () {
 //   ① 同貨編同站過去報工的「實際工時中位數（每顆）」— 剔除單顆超過 8 小時的忘記結束紀錄
 //   ② ERP 的製程時間T（work_order_routes.std_minutes）— 實際只有約 4% 有值
 Admin.assignBadge = function (p) {
-  const qty = p.total ? ` <small class="muted">${p.done}/${p.total}</small>`
-    : (p.done ? ` <small class="muted">${p.done}</small>` : "");
+  // 有指定站別看顆數，沒指定看「做完幾站」——兩者單位不同，要標清楚
+  const u = p.unit === "station" ? t("as_u_station") : t("as_u_qty");
+  const qty = p.total ? ` <small class="muted">${p.done}/${p.total} ${u}</small>`
+    : (p.done ? ` <small class="muted">${p.done} ${u}</small>` : "");
   if (p.state === "done") return `<span class="badge go">${t("as_st_done")}</span>${qty}`;
   if (p.state === "doing") return `<span class="badge warn">${t("as_st_doing")}</span>${qty}`;
   return `<span class="badge mute">${t("as_st_none")}</span>${qty}`;
@@ -919,39 +921,56 @@ Admin.loadAssignList = async function () {
   // 站別下拉要列該工單的製程站，所以一次把這批工單的路線抓回來
   const routeMap = {};
   if (nos.length) {
-    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,seq,station").in("work_order_no", nos).order("seq");
+    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,seq,station,station_type").in("work_order_no", nos).order("seq");
     (rts || []).forEach((r) => { (routeMap[r.work_order_no] = routeMap[r.work_order_no] || []).push(r); });
   }
 
   // 指派做到哪了：用報工紀錄自動判斷，員工不用另外按「完成」。
   //   已完成 = 該站做滿工單數量   進行中 = 有人在做或已完成部分顆數   未開始 = 完全沒紀錄
   // 不刪除已完成的指派，只是預設不顯示——刪掉就查不到「當初派給誰」。
-  const doneQty = {}, running = {};
+  const doneQty = {}, running = {};      // 依「員工|工單|站」
+  const woDone = {}, woRun = {};         // 依「工單|站」，不分人
   if (nos.length) {
     const { data: js } = await sb.from("jobs")
       .select("work_order_no,station,qty,status,employee_id").in("work_order_no", nos);
     (js || []).forEach((j) => {
-      const k = j.employee_id + "|" + j.work_order_no + "|" + (j.station || "");
-      if (j.status === "done") doneQty[k] = (doneQty[k] || 0) + (Number(j.qty) || 0);
-      else running[k] = true;
+      const st = j.station || "";
+      const k = j.employee_id + "|" + j.work_order_no + "|" + st;
+      const wk = j.work_order_no + "|" + st;
+      if (j.status === "done") {
+        doneQty[k] = (doneQty[k] || 0) + (Number(j.qty) || 0);
+        woDone[wk] = (woDone[wk] || 0) + (Number(j.qty) || 0);
+      } else { running[k] = true; woRun[wk] = true; }
     });
   }
   const stateOf = (a) => {
     const w = woMap[a.work_order_no] || {};
     const total = Number(w.qty);
     const hasTotal = isFinite(total) && total > 0;
-    // 沒指定站別時，把該員工在這張工單所有站的紀錄一起看
-    const keys = a.station
-      ? [a.employee_id + "|" + a.work_order_no + "|" + a.station]
-      : Object.keys(doneQty).concat(Object.keys(running))
-          .filter((k) => k.startsWith(a.employee_id + "|" + a.work_order_no + "|"));
-    const done = keys.reduce((s, k) => s + (doneQty[k] || 0), 0);
-    const isRun = keys.some((k) => running[k]);
-    let state = "none";
-    if (hasTotal && done >= total && total > 0) state = "done";
-    else if (isRun || done > 0) state = "doing";
-    else if (!hasTotal && done > 0) state = "done";
-    return { state, done, total: hasTotal ? total : null };
+
+    // 有指定站別 → 看這個人在這一站做了幾顆
+    if (a.station) {
+      const k = a.employee_id + "|" + a.work_order_no + "|" + a.station;
+      const done = doneQty[k] || 0;
+      let state = "none";
+      if (hasTotal ? done >= total : done > 0) state = "done";
+      else if (running[k] || done > 0) state = "doing";
+      return { state, done, total: hasTotal ? total : null, unit: "qty" };
+    }
+
+    // 沒指定站別 → 語意是「整張單交給你」，所以看這張工單的廠內站是不是都做完了。
+    // 不能把各站的顆數相加——那是同一批貨經過不同站，加起來沒有意義。
+    const inhouse = (routeMap[a.work_order_no] || []).filter((r) => r.station_type !== "加工戶");
+    if (!inhouse.length) return { state: "none", done: 0, total: null, unit: "qty" };
+    let okStations = 0, anyProgress = false;
+    inhouse.forEach((r) => {
+      const wk = a.work_order_no + "|" + r.station;
+      const d = woDone[wk] || 0;
+      if (hasTotal ? d >= total : d > 0) okStations++;
+      if (d > 0 || woRun[wk]) anyProgress = true;
+    });
+    const state = okStations >= inhouse.length ? "done" : (anyProgress ? "doing" : "none");
+    return { state, done: okStations, total: inhouse.length, unit: "station" };
   };
   rows = rows.map((a) => ({ ...a, _p: stateOf(a) }));
 
