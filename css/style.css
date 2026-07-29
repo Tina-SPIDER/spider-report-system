@@ -227,24 +227,51 @@ tr.warn-row td{background:rgba(248,113,113,.13);color:#fca5a5;font-weight:600}
 /* ===== 行事曆 ===== */
 .cal-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .cal-bar strong{font-size:19px;flex:1;text-align:center}
-.cal-head,.cal-body{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.cal-modes{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.cal-modes button{border:0;background:var(--card2);color:var(--txt);padding:7px 16px;cursor:pointer;font-size:15px}
+.cal-modes button+button{border-left:1px solid var(--line)}
+.cal-modes button.active{background:var(--go);color:#06240f;font-weight:700}
+.cal-src{display:inline-flex;align-items:center;gap:6px;font-size:15px;color:var(--muted);margin:0;cursor:pointer}
+.cal-src input{width:auto;margin:0}
+
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-body.month{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal-wd{text-align:center;font-size:13px;color:var(--muted);padding:4px 0;font-weight:600}
-.cal-cell{position:relative;aspect-ratio:1/1;min-height:44px;border:1px solid var(--line);background:var(--card2);
-  border-radius:8px;cursor:pointer;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:2px}
+.cal-cell{min-height:92px;border:1px solid var(--line);background:var(--card2);border-radius:8px;cursor:pointer;
+  padding:5px;display:flex;flex-direction:column;align-items:stretch;gap:3px;overflow:hidden;text-align:left}
 .cal-cell:hover{filter:brightness(1.3)}
-.cal-cell.other{opacity:.35}
-.cal-cell.inweek{background:rgba(37,99,235,.12)}
+.cal-cell.other{opacity:.4}
 .cal-cell.today{border-color:var(--go);box-shadow:inset 0 0 0 1px var(--go)}
 .cal-cell.sel{outline:2px solid var(--c1)}
-.cal-d{font-size:14px;color:var(--txt);font-weight:600}
-.cal-n{font-size:13px;font-weight:800;border-radius:999px;padding:1px 7px;line-height:1.5}
-.cal-n.todo{background:rgba(37,99,235,.25);color:#93c5fd}
-.cal-n.over{background:rgba(248,113,113,.22);color:#fca5a5}
-.cal-n.done{background:rgba(34,197,94,.2);color:#7ee2a0}
-@media(max-width:560px){
-  .cal-cell{min-height:38px;padding:2px}
-  .cal-d{font-size:13px}
-  .cal-n{font-size:11px;padding:0 5px}
+.cal-d{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--txt);font-weight:700}
+.cal-n{font-size:12px;font-weight:800;border-radius:999px;padding:1px 7px;background:rgba(37,99,235,.3);color:#93c5fd}
+.cal-mini{font-size:11px;line-height:1.45;border-radius:4px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-mini.mine{background:rgba(34,197,94,.18);color:#7ee2a0}
+.cal-mini.due{background:rgba(34,211,238,.14);color:#7dd3fc}
+.cal-mini.more{color:var(--muted)}
+
+/* 週／日檢視：直接列出客戶＋工單 */
+.cal-cols{display:grid;gap:6px}
+.cal-cols.week{grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal-cols.day{grid-template-columns:1fr}
+.cal-col{border:1px solid var(--line);border-radius:8px;background:var(--card2);overflow:hidden;min-height:120px}
+.cal-col.today{border-color:var(--go)}
+.cal-colhead{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 8px;
+  background:var(--surface);font-size:13px;font-weight:700;cursor:pointer}
+.cal-col.today .cal-colhead{background:rgba(34,197,94,.16);color:#7ee2a0}
+.cal-colbody{padding:6px;display:flex;flex-direction:column;gap:4px}
+.cal-chip{font-size:12px;line-height:1.5;border-radius:5px;padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-chip.mine{background:rgba(34,197,94,.18);color:#a7f3c0}
+.cal-chip.due{background:rgba(34,211,238,.13);color:#9fdcf5}
+.cal-chip.done{opacity:.5;text-decoration:line-through}
+.cal-cols.day .cal-chip{font-size:15px;padding:7px 10px}
+
+@media(max-width:760px){
+  .cal-cols.week{grid-template-columns:1fr}     /* 手機一天一列，才看得到客戶名 */
+  .cal-col{min-height:0}
+  .cal-cell{min-height:62px}
+  .cal-mini{display:none}                        /* 月檢視在手機只留數字 */
 }
 
 /* 必填欄位標記 */

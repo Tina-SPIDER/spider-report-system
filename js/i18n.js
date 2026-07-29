@@ -29,8 +29,10 @@ window.I18N = {
     cal_ym: "{y} 年 {m} 月", cal_today: "今天",
     cal_this_week: "本週工單", cal_this_week_undone: "本週未完成", cal_next_week: "下週工單",
     cal_no_date: "未排日期", cal_no_date_n: "另有 {n} 張工單沒有指定日期",
-    cal_pick_day: "點月曆上的日期，看那天要做的工單",
+    cal_pick_day: "點日期看那天要做的工單",
     cal_day_empty: "這天沒有排工單", cal_n_wo: "共 {n} 張",
+    cal_mode_day: "日", cal_mode_week: "週", cal_mode_month: "月",
+    cal_src_mine: "我的指派", cal_src_due: "工單交期", cal_in_view: "目前檢視",
 
     // 我的看板
     home_running: "現在進行中", home_wo: "今天要做的工單", home_todo: "今天要完成的待辦",
@@ -189,8 +191,10 @@ window.I18N = {
     cal_ym: "Tháng {m}/{y}", cal_today: "Hôm nay",
     cal_this_week: "Đơn tuần này", cal_this_week_undone: "Tuần này chưa xong", cal_next_week: "Đơn tuần sau",
     cal_no_date: "Chưa xếp ngày", cal_no_date_n: "Còn {n} đơn chưa chỉ định ngày",
-    cal_pick_day: "Bấm vào ngày trên lịch để xem đơn hôm đó",
+    cal_pick_day: "Bấm vào ngày để xem đơn hôm đó",
     cal_day_empty: "Ngày này không có đơn", cal_n_wo: "Tổng {n} đơn",
+    cal_mode_day: "Ngày", cal_mode_week: "Tuần", cal_mode_month: "Tháng",
+    cal_src_mine: "Được giao", cal_src_due: "Hạn giao", cal_in_view: "Đang xem",
 
     home_running: "Đang làm", home_wo: "Đơn cần làm hôm nay", home_todo: "Việc cần xong hôm nay",
     home_no_wo: "Hôm nay không có đơn 👍", home_no_todo: "Hôm nay không có việc 👍",
