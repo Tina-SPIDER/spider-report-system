@@ -130,7 +130,9 @@ window.I18N = {
     finish_title: "結束報工",
 
     // 績效
-    today_score: "今日得分", month_score: "本月得分", score_detail: "得分明細",
+    tier_made: "① 生產已得分", tier_shipped: "② 出貨已得分", tier_paid: "③ 收款已得分",
+    tier_made_s: "生產已得分", tier_shipped_s: "出貨已得分", tier_paid_s: "收款已得分",
+    tier_note: "① <b>生產已得分</b>：報工結束就計入。② <b>出貨已得分</b>：該工單「最後一站」已做滿數量，視同可出貨（實測 468 張工單有 460 張最後一站是品包，少數是組裝／噴砂，所以用「最後一站」判定而非寫死品包）。③ <b>收款已得分</b>：<b>尚未接資料</b>，目前一律為 0。",    today_score: "今日得分", month_score: "本月得分", score_detail: "得分明細",
     date: "日期", score: "分數", status: "狀態",
     team: "班組", team_rank: "班組排行", total: "合計", member: "成員",
     your_team: "你的班組",
@@ -298,7 +300,9 @@ window.I18N = {
     select_employee: "Chọn nhân viên", assigned_list: "Danh sách đã giao", any_station: "(Không chỉ định)", due_date: "Ngày làm", assigner: "Người giao",
     finish_title: "Kết thúc báo công",
 
-    today_score: "Điểm hôm nay", month_score: "Điểm tháng này", score_detail: "Chi tiết điểm",
+    tier_made: "① Điểm sản xuất", tier_shipped: "② Điểm đã xuất hàng", tier_paid: "③ Điểm đã thu tiền",
+    tier_made_s: "Điểm sản xuất", tier_shipped_s: "Đã xuất hàng", tier_paid_s: "Đã thu tiền",
+    tier_note: "① <b>Điểm sản xuất</b>: tính ngay khi kết thúc báo công. ② <b>Đã xuất hàng</b>: công đoạn cuối của lệnh đã đủ số lượng. ③ <b>Đã thu tiền</b>: <b>chưa nối dữ liệu</b>, hiện luôn bằng 0.",    today_score: "Điểm hôm nay", month_score: "Điểm tháng này", score_detail: "Chi tiết điểm",
     date: "Ngày", score: "Điểm", status: "Trạng thái",
     team: "Nhóm", team_rank: "Xếp hạng nhóm", total: "Tổng", member: "Thành viên",
     your_team: "Nhóm của bạn",
