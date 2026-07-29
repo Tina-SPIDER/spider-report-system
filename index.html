@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=65">
+  <link rel="stylesheet" href="css/style.css?v=66">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=65" class="header-logo" alt="logo">
+    <img src="logo.png?v=66" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=65" class="login-logo" alt="logo">
+        <img src="logo.png?v=66" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -292,6 +292,30 @@
             <div id="mcCount" class="muted" style="font-size:14px;margin-top:10px"></div>
             <div id="machineTable" style="overflow-x:auto;margin-top:6px"></div>
             <p id="mcNote" class="proto-note" style="margin-top:12px"></p>
+          </div>
+        </div>
+
+        <!-- 人員負荷 -->
+        <div id="pane-load" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_load">人員負荷</h3>
+            <div class="row">
+              <select id="ldRange" class="grow">
+                <option value="week" data-i18n="ld_r_week">本週</option>
+                <option value="today" data-i18n="ld_r_today">今天</option>
+                <option value="next" data-i18n="ld_r_next">下週</option>
+                <option value="custom" data-i18n="ld_r_custom">自訂區間</option>
+              </select>
+              <input id="ldFrom" type="date" class="grow hide">
+              <input id="ldTo" type="date" class="grow hide">
+              <span class="mc-plan"><span data-i18n="ld_per_day">每日可用(分)</span>
+                <input id="ldPerDay" type="number" min="1" step="30" value="480" style="width:90px"></span>
+              <label class="cal-src"><input type="checkbox" id="ldSkipWeekend" checked><span data-i18n="ld_skip_weekend">扣掉週末</span></label>
+              <button id="btnLdQuery" class="btn primary" data-i18n="query">查詢</button>
+            </div>
+            <div id="ldInfo" class="muted" style="font-size:14px;margin-top:10px"></div>
+            <div id="ldTable" style="overflow-x:auto;margin-top:6px"></div>
+            <p id="ldNote" class="muted" style="font-size:13px;margin-top:10px"></p>
           </div>
         </div>
 
@@ -623,18 +647,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=65"></script>
-  <script src="js/i18n.js?v=65"></script>
-  <script src="js/auth.js?v=65"></script>
-  <script src="js/report.js?v=65"></script>
-  <script src="js/incident.js?v=65"></script>
-  <script src="js/todo.js?v=65"></script>
-  <script src="js/home.js?v=65"></script>
-  <script src="js/score.js?v=65"></script>
-  <script src="js/admin.js?v=65"></script>
-  <script src="js/scoreplan.js?v=65"></script>
-  <script src="js/calendar.js?v=65"></script>
-  <script src="js/nav.js?v=65"></script>
-  <script src="js/notify.js?v=65"></script>
+  <script src="js/config.js?v=66"></script>
+  <script src="js/i18n.js?v=66"></script>
+  <script src="js/auth.js?v=66"></script>
+  <script src="js/report.js?v=66"></script>
+  <script src="js/incident.js?v=66"></script>
+  <script src="js/todo.js?v=66"></script>
+  <script src="js/home.js?v=66"></script>
+  <script src="js/score.js?v=66"></script>
+  <script src="js/admin.js?v=66"></script>
+  <script src="js/scoreplan.js?v=66"></script>
+  <script src="js/calendar.js?v=66"></script>
+  <script src="js/nav.js?v=66"></script>
+  <script src="js/notify.js?v=66"></script>
 </body>
 </html>

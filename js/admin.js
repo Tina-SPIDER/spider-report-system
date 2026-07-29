@@ -25,9 +25,178 @@ Admin.render = function () {
   else if (Admin.tab === "wo") Admin.initWoImport();
   else if (Admin.tab === "rules") Admin.loadRules();
   else if (Admin.tab === "overview") Admin.loadOverview();
+  else if (Admin.tab === "load") Admin.initLoad();
   else if (Admin.tab === "ship") Admin.initShip();
   else if (Admin.tab === "download") Admin.initDownload();
   else if (Admin.tab === "scoreplan") ScorePlan.render();
+};
+
+// ---------- 人員負荷 ----------
+// 誰手上還有多少工作、做不做得完。
+// 負荷 = 未完成指派的「剩餘顆數 × 每顆預估工時」，
+// 可用 = 期間內工作天數 × 每日可用分鐘。
+Admin.initLoad = function () {
+  const sync = () => {
+    const c = $("#ldRange").value === "custom";
+    $("#ldFrom").classList.toggle("hide", !c);
+    $("#ldTo").classList.toggle("hide", !c);
+  };
+  $("#ldRange").onchange = () => { sync(); Admin.loadLoad(); };
+  $("#btnLdQuery").onclick = Admin.loadLoad;
+  $("#ldPerDay").onchange = Admin.loadLoad;
+  $("#ldSkipWeekend").onchange = Admin.loadLoad;
+  if (!$("#ldFrom").value) {
+    const n = new Date();
+    $("#ldFrom").value = fmtDate(n);
+    $("#ldTo").value = fmtDate(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 6));
+  }
+  sync();
+  Admin.loadLoad();
+};
+
+Admin.loadRange = function () {
+  const mode = $("#ldRange").value;
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  if (mode === "today") return { s: t0, e: t0 };
+  if (mode === "custom") {
+    return { s: new Date($("#ldFrom").value + "T00:00:00"), e: new Date($("#ldTo").value + "T00:00:00") };
+  }
+  const sun = new Date(t0); sun.setDate(sun.getDate() - sun.getDay());
+  if (mode === "next") { sun.setDate(sun.getDate() + 7); }
+  const sat = new Date(sun); sat.setDate(sat.getDate() + 6);
+  return { s: sun, e: sat };
+};
+
+Admin.workDays = function (s, e, skipWeekend) {
+  let n = 0;
+  for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+    if (skipWeekend && (d.getDay() === 0 || d.getDay() === 6)) continue;
+    n++;
+  }
+  return n;
+};
+
+Admin.loadLoad = async function () {
+  const { s, e } = Admin.loadRange();
+  if (!(s instanceof Date) || isNaN(s) || isNaN(e)) return;
+  const perDay = Math.max(1, Number($("#ldPerDay").value) || 480);
+  const days = Admin.workDays(s, e, $("#ldSkipWeekend").checked);
+  const avail = perDay * days;
+  const sKey = fmtDate(s), eKey = fmtDate(e);
+
+  const [{ data: emps }, { data: assigns }] = await Promise.all([
+    sb.from("employees").select("id,name,team").eq("active", true).eq("role", "員工").order("name"),
+    sb.from("assignments").select("employee_id,work_order_no,station,due_date"),
+  ]);
+  const staff = emps || [];
+  // 期間內或沒排日期的指派都算進來（沒排日期＝隨時可能要做）
+  const asg = (assigns || []).filter((a) => !a.due_date || (a.due_date >= sKey && a.due_date <= eKey));
+  const nos = [...new Set(asg.map((a) => a.work_order_no))];
+
+  let wos = [], routes = [], jobs = [];
+  if (nos.length) {
+    const r = await Promise.all([
+      sb.from("work_orders").select("work_order_no,sku,qty,customer").in("work_order_no", nos.slice(0, 500)),
+      sb.from("work_order_routes").select("work_order_no,station,station_type,std_minutes").in("work_order_no", nos.slice(0, 500)),
+      sb.from("jobs").select("work_order_no,station,qty,work_minutes,status,employee_id").in("work_order_no", nos.slice(0, 500)),
+    ]);
+    wos = r[0].data || []; routes = r[1].data || []; jobs = r[2].data || [];
+  }
+  const woMap = {}; wos.forEach((w) => (woMap[w.work_order_no] = w));
+  const routeMap = {}; routes.forEach((r) => { (routeMap[r.work_order_no] = routeMap[r.work_order_no] || []).push(r); });
+  const stdOf = {}; routes.forEach((r) => { stdOf[r.work_order_no + "|" + r.station] = Number(r.std_minutes) || 0; });
+
+  // 每顆預估工時：同貨編同站的實際中位數 → ERP 工時 → 全廠同站中位數
+  const bySkuSt = {}, bySt = {}, doneQty = {}, runByEmp = {};
+  jobs.forEach((j) => {
+    const w = woMap[j.work_order_no] || {};
+    if (j.status === "done") {
+      doneQty[j.work_order_no + "|" + j.station] = (doneQty[j.work_order_no + "|" + j.station] || 0) + (Number(j.qty) || 0);
+      const mins = Number(j.work_minutes);
+      if (isFinite(mins) && mins > 0) {
+        const per = mins / Math.max(1, Number(j.qty) || 1);
+        if (per > 0 && per <= 480) {
+          if (w.sku) (bySkuSt[w.sku + "|" + j.station] = bySkuSt[w.sku + "|" + j.station] || []).push(per);
+          (bySt[j.station] = bySt[j.station] || []).push(per);
+        }
+      }
+    } else { runByEmp[j.employee_id] = (runByEmp[j.employee_id] || 0) + 1; }
+  });
+  const med = (arr) => {
+    if (!arr || !arr.length) return null;
+    const a = [...arr].sort((x, y) => x - y); const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  let noEst = 0;
+  const estPer = (wo, station) => {
+    const w = woMap[wo] || {};
+    const v1 = w.sku ? med(bySkuSt[w.sku + "|" + station]) : null;
+    if (v1) return v1;
+    const v2 = stdOf[wo + "|" + station];
+    if (v2 > 0) return v2;
+    const v3 = med(bySt[station]);
+    if (v3) return v3;
+    noEst++; return 0;
+  };
+
+  // 每筆指派還剩多少工時
+  const loadOf = (a) => {
+    const w = woMap[a.work_order_no] || {};
+    const total = Number(w.qty);
+    const hasTotal = isFinite(total) && total > 0;
+    const targets = a.station
+      ? [a.station]
+      : (routeMap[a.work_order_no] || []).filter((r) => r.station_type !== "加工戶").map((r) => r.station);
+    let mins = 0, open = 0;
+    targets.forEach((st) => {
+      const done = doneQty[a.work_order_no + "|" + st] || 0;
+      const left = hasTotal ? Math.max(0, total - done) : (done > 0 ? 0 : 1);
+      if (left > 0) { open++; mins += estPer(a.work_order_no, st) * left; }
+    });
+    return { mins, open };
+  };
+
+  const rows = staff.map((emp) => {
+    const mine = asg.filter((a) => a.employee_id === emp.id);
+    let mins = 0, cnt = 0;
+    mine.forEach((a) => { const l = loadOf(a); if (l.open > 0) { mins += l.mins; cnt++; } });
+    return { ...emp, mins: Math.round(mins), cnt, running: runByEmp[emp.id] || 0 };
+  }).sort((a, b) => b.mins - a.mins);
+
+  // 沒派給任何人的（有交期落在期間內）
+  const assigned = new Set(asg.map((a) => a.work_order_no));
+  const unNos = wos.filter((w) => !assigned.has(w.work_order_no)).map((w) => w.work_order_no);
+  let unMins = 0;
+  unNos.forEach((no) => { const l = loadOf({ work_order_no: no, station: "" }); unMins += l.mins; });
+
+  $("#ldInfo").innerHTML = t("ld_info", { from: sKey, to: eKey, d: days, m: avail });
+  $("#ldNote").innerHTML = t("ld_note") + (noEst ? "　" + t("ld_no_est", { n: noEst }) : "");
+
+  if (!rows.length) { $("#ldTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  const head = `<tr><th>${t("name")}</th><th>${t("team")}</th>
+    <th class="r">${t("status_running")}</th><th class="r">${t("ld_open")}</th>
+    <th class="r">${t("ld_need")}</th><th class="r">${t("ld_avail")}</th>
+    <th class="r">${t("ld_pct")}</th><th style="min-width:180px">${t("ld_bar")}</th></tr>`;
+  const body = rows.map((r) => {
+    const pct = avail > 0 ? r.mins / avail * 100 : 0;
+    const over = Math.max(0, r.mins - avail);
+    const col = pct > 100 ? "var(--err)" : pct >= 85 ? "var(--warn)" : "var(--go)";
+    // 超載時：前 100% 用琥珀，超出的部分用深紅疊在後面，100% 位置畫白線
+    const w1 = Math.min(100, pct);
+    const w2 = pct > 100 ? Math.min(60, pct - 100) : 0;   // 超出的部分最多再畫 60%，免得撐爆版面
+    const bar = `<div class="ld-bar"><div class="ld-fill" style="width:${w1}%;background:${pct > 100 ? "var(--warn)" : col}"></div>
+      ${w2 ? `<div class="ld-over" style="width:${w2}%"></div>` : ""}<div class="ld-line"></div></div>`;
+    const pctCell = `<strong style="color:${col}">${pct.toFixed(0)}%</strong>` +
+      (over > 0 ? `<br><small style="color:var(--err)">${t("ld_over", { n: over, h: (over / 60).toFixed(1) })}</small>` : "");
+    return `<tr><td>${r.name}</td><td>${r.team || ""}</td>
+      <td class="r">${r.running || ""}</td><td class="r">${r.cnt || ""}</td>
+      <td class="r">${r.mins || ""}</td><td class="r">${avail}</td>
+      <td class="r" style="white-space:nowrap">${pctCell}</td><td>${bar}</td></tr>`;
+  }).join("");
+  const unRow = unMins > 0
+    ? `<tr class="warn-row"><td colspan="4"><strong>${t("ld_unassigned")}</strong></td>
+       <td class="r"><strong>${Math.round(unMins)}</strong></td><td colspan="3">${t("ld_unassigned_hint", { n: unNos.length })}</td></tr>` : "";
+  $("#ldTable").innerHTML = `<table>${head}${body}${unRow}</table>`;
 };
 
 // ---------- 出貨確認 ----------

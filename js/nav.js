@@ -25,6 +25,7 @@ Nav.GROUPS = [
     { view: "admin", atab: "dashboard", label: "admin_dash", mgr: true },
     { view: "admin", atab: "machine", label: "machine_usage", mgr: true },
     { view: "admin", atab: "progress", label: "admin_progress", mgr: true },
+    { view: "admin", atab: "load", label: "admin_load", mgr: true },
   ] },
   { key: "perf", icon: "📈", label: "grp_perf", items: [
     { view: "score", label: "nav_score" },

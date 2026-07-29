@@ -296,6 +296,11 @@ tr.warn-row td{background:rgba(248,113,113,.13);color:#fca5a5;font-weight:600}
 .cal-chip.manual{outline:1px dashed #fcd34d}
 .cal-col.drop-hot,.cal-cell.drop-hot{outline:2px dashed var(--go);background:rgba(34,197,94,.12)}
 .cal-mover{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+/* 人員負荷條：超出 100% 的部分疊深紅，100% 位置畫白線當滿載線 */
+.ld-bar{position:relative;height:16px;background:var(--track);border-radius:4px;overflow:hidden;display:flex;min-width:170px}
+.ld-fill{height:100%}
+.ld-over{height:100%;background:#b91c1c;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 4px,transparent 4px 8px)}
+.ld-line{position:absolute;left:100%;top:0;bottom:0;width:2px;background:#fff;opacity:.85}
 .mc-plan{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
 .mc-plan input{width:90px}
 
