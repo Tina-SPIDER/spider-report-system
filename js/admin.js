@@ -1065,9 +1065,10 @@ Admin.showProgressDetail = async function (wo) {
   const hasTotal = isFinite(total) && total > 0;
   const byStation = {};
   jobs.forEach((j) => {
-    if (!byStation[j.station]) byStation[j.station] = { qty: 0, last: null, names: new Set() };
+    if (!byStation[j.station]) byStation[j.station] = { qty: 0, mins: 0, last: null, names: new Set() };
     const s = byStation[j.station];
     s.qty += Number(j.qty) || 0;
+    s.mins += Number(j.work_minutes) || 0;      // 該站累計實際工時（分批做的會加總）
     if (!s.last || new Date(j.end_at) > new Date(s.last.end_at)) s.last = j;
     if (j.employees && j.employees.name) s.names.add(j.employees.name);
   });
@@ -1089,7 +1090,7 @@ Admin.showProgressDetail = async function (wo) {
   </div>`;
 
   const head = `<tr><th>#</th><th>${t("station")}</th><th>${t("status")}</th><th class="r">${t("st_qty_col")}</th>
-    <th>${t("maker_done")}</th><th>${t("done_time")}</th></tr>`;
+    <th>${t("maker_done")}</th><th class="r">${t("pg_mins")}</th><th>${t("done_time")}</th></tr>`;
   const body = routes.map((r) => {
     const outsourced = r.station_type !== "工作站";
     const s = byStation[r.station];
@@ -1102,8 +1103,14 @@ Admin.showProgressDetail = async function (wo) {
     const qtyCell = s ? (hasTotal ? `${s.qty} / ${total}` : String(s.qty)) : (hasTotal ? `0 / ${total}` : "");
     const who = s ? [...s.names].join("、") : "";
     const last = s && s.last && s.last.end_at ? fmtDate(s.last.end_at) + " " + fmtTime(s.last.end_at) : "";
+    // 實際工時：該站所有已完成報工的加總；有顆數時順帶算每顆平均
+    const mins = s && s.mins > 0 ? Math.round(s.mins) : null;
+    const per = mins && s.qty > 0 ? Math.round(s.mins / s.qty * 10) / 10 : null;
+    const minCell = mins
+      ? `${mins}${per ? ` <small class="muted">(${per}/${t("as_u_qty")})</small>` : ""}`
+      : `<span class="muted">—</span>`;
     return `<tr class="${cls}"><td>${r.seq}</td><td>${r.station}</td><td>${badge}</td>
-      <td class="r">${qtyCell}</td><td>${who}</td><td>${last}</td></tr>`;
+      <td class="r">${qtyCell}</td><td>${who}</td><td class="r" style="white-space:nowrap">${minCell}</td><td>${last}</td></tr>`;
   }).join("");
   $("#pgTable").innerHTML = `<table>${head}${body}</table>`;
 };
