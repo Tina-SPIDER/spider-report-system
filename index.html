@@ -1,30 +1,43 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=44">
+  <link rel="stylesheet" href="css/style.css?v=50">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
-    <img src="logo.png?v=44" class="header-logo" alt="logo">
+    <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
+    <img src="logo.png?v=50" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
+    <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
+    <span class="bell-wrap">
+      <button id="btnBell" class="hdr-btn hide" aria-label="通知">🔔<span id="bellDot" class="bell-dot hide">0</span></button>
+      <div id="notifyPanel" class="notify-panel hide">
+        <div class="notify-head">
+          <strong data-i18n="nt_title">通知</strong>
+          <button id="btnNotifyRead" class="btn small ghost" data-i18n="nt_read_all">全部標為已讀</button>
+        </div>
+        <div id="notifyList" class="notify-list"></div>
+      </div>
+    </span>
     <span class="lang-switch">
       <button id="langZh">中文</button>
       <button id="langVi">VN</button>
     </span>
     <button id="btnLogout" data-i18n="logout" class="hide">登出</button>
   </header>
+  <div id="navScrim" class="nav-scrim"></div>
 
   <!-- 登入畫面 -->
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=44" class="login-logo" alt="logo">
+        <img src="logo.png?v=50" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -45,17 +58,33 @@
   <section id="appView" class="hide">
     <main>
       <!-- 導覽 -->
-      <nav id="nav">
-        <button data-view="report" class="active" data-i18n="nav_report">報工</button>
-        <button data-view="incident" data-i18n="nav_incident">異常回報</button>
-        <button data-view="todo" data-i18n="nav_todo">我的待辦</button>
-        <button data-view="score" data-i18n="nav_score">我的績效</button>
-        <button data-view="team" data-i18n="nav_team">團體績效</button>
-        <button data-view="admin" class="hide" data-i18n="nav_admin">管理</button>
-      </nav>
+      <!-- 選單內容由 js/nav.js 依角色產生 -->
+      <nav id="nav"></nav>
+
+      <!-- 我的看板（登入後首頁）-->
+      <div id="view-home" class="view">
+        <div class="card home-head"><div id="homeHead"></div></div>
+        <div class="stat-row" id="homeStats" style="margin-bottom:16px"></div>
+        <div class="card">
+          <h3><span data-i18n="home_target">本月目標</span> <small class="proto-tag" data-i18n="proto">原型</small></h3>
+          <div id="homeTarget"></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="home_running">現在進行中</h3>
+          <div id="homeRunning"></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="home_wo">今天要做的工單</h3>
+          <div id="homeWo"></div>
+        </div>
+        <div class="card">
+          <h3 data-i18n="home_todo">今天要完成的待辦</h3>
+          <div id="homeTodo"></div>
+        </div>
+      </div>
 
       <!-- 報工 -->
-      <div id="view-report" class="view">
+      <div id="view-report" class="view hide">
         <div class="card">
           <h3 data-i18n="my_assignments">我的指派工單</h3>
           <div id="assignList"></div>
@@ -68,7 +97,7 @@
           </div>
 
           <div id="woInfo" class="hide">
-            <div style="background:#f8fafc;border:0.5px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+            <div class="wo-head">
               <div style="font-size:15px;color:var(--muted)"><span data-i18n="customer">客戶</span>：<strong style="font-size:19px;color:var(--txt)" id="woCust">-</strong></div>
               <div style="font-size:15px;color:var(--muted);margin-top:2px"><span data-i18n="product">品名</span>：<strong style="font-size:19px;color:var(--txt)" id="woProduct">-</strong></div>
             </div>
@@ -85,6 +114,7 @@
             <label data-i18n="station">工序站</label>
             <select id="selStation"></select>
             <input id="inNewStation" class="hide" data-i18n-ph="new_station_ph" placeholder="輸入新的站名" style="margin-top:8px">
+            <div id="stationProgress"></div>
             <div id="drawingBox" style="margin-top:8px"></div>
             <label data-i18n="machine">使用機台</label>
             <select id="selMachine"></select>
@@ -98,6 +128,21 @@
           <h3 data-i18n="running_jobs">進行中工單</h3>
           <div id="runningList"></div>
         </div>
+      </div>
+
+      <!-- 行事曆 -->
+      <div id="view-cal" class="view hide">
+        <div class="stat-row" id="calSummary" style="margin-bottom:16px"></div>
+        <div class="card">
+          <div class="cal-bar">
+            <button id="btnCalPrev" class="btn small ghost">‹</button>
+            <strong id="calTitle"></strong>
+            <button id="btnCalNext" class="btn small ghost">›</button>
+            <button id="btnCalToday" class="btn small" data-i18n="cal_today">今天</button>
+          </div>
+          <div id="calGrid"></div>
+        </div>
+        <div class="card"><div id="calDay"></div></div>
       </div>
 
       <!-- 異常回報 -->
@@ -187,6 +232,8 @@
               <button data-atab="emp" data-i18n="admin_emp">員工管理</button>
               <button data-atab="wo" data-i18n="admin_wo">工單匯入</button>
               <button data-atab="machmgr" data-i18n="admin_machmgr">機台管理</button>
+              <button data-atab="scoreplan" data-i18n="admin_scoreplan">計分比例</button>
+              <button data-atab="download" data-i18n="admin_download">資料下載</button>
             </div>
           </div>
         </div>
@@ -264,6 +311,7 @@
               <button id="btnJobsExport" class="btn ghost" data-i18n="export_excel">匯出 Excel</button>
             </div>
             <div id="jobsTable" style="margin-top:12px;overflow-x:auto"></div>
+            <div id="jobsPager"></div>
           </div>
         </div>
 
@@ -362,6 +410,47 @@
           </div>
         </div>
 
+        <!-- 計分比例（貨編層級）※原型：資料存瀏覽器，不寫資料庫 -->
+        <div id="pane-scoreplan" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_scoreplan">計分比例</h3>
+            <p class="proto-note" data-i18n="sp_proto"></p>
+            <p class="muted" style="font-size:13px" data-i18n="sp_hint"></p>
+            <div class="row">
+              <input type="file" id="spFile" accept=".xls,.xlsx" class="grow">
+              <button id="btnSpReload" class="btn ghost" data-i18n="refresh">重新整理</button>
+            </div>
+            <div id="spResult" style="font-size:14px;margin-top:10px"></div>
+          </div>
+
+          <div class="card">
+            <h4 style="margin:0 0 10px" data-i18n="sp_sku_list">貨編清單</h4>
+            <div id="spSkuList" style="overflow-x:auto"></div>
+          </div>
+
+          <div class="card hide" id="spEditor">
+            <div id="spEditorHead" style="margin-bottom:10px"></div>
+            <div id="spTable" style="overflow-x:auto"></div>
+            <div id="spHint"></div>
+            <div class="row" id="spBtns" style="margin-top:10px"></div>
+          </div>
+
+          <div class="card">
+            <h4 style="margin:0 0 10px" data-i18n="sp_requests">修改申請</h4>
+            <div id="spReqList"></div>
+          </div>
+        </div>
+
+        <!-- 資料下載 -->
+        <div id="pane-download" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_download">資料下載</h3>
+            <p class="muted" style="font-size:14px" data-i18n="dl_hint"></p>
+            <button id="btnDownloadAll" class="btn primary" data-i18n="dl_btn">一鍵下載全部資料</button>
+            <div id="dlResult" style="font-size:14px;margin-top:12px;line-height:1.8"></div>
+          </div>
+        </div>
+
         <!-- 全員總覽 -->
         <div id="pane-overview" class="admin-pane hide">
           <div class="card">
@@ -413,8 +502,8 @@
       <input type="hidden" id="finishJobId">
       <label data-i18n="work_content">作業內容</label>
       <input id="finWork" type="text" data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
-      <label data-i18n="qty">生產數量</label>
-      <input id="finQty" type="number" min="0">
+      <label><span data-i18n="qty">生產數量</span> <span class="req">*</span></label>
+      <input id="finQty" type="number" min="0" required inputmode="numeric">
       <label data-i18n="scrap">報廢數量</label>
       <input id="finScrap" type="number" min="0">
       <label data-i18n="note">備註</label>
@@ -423,6 +512,23 @@
       <div class="row">
         <button id="btnFinCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
         <button id="btnFinConfirm" class="btn primary grow" data-i18n="confirm">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 申請修改計分比例 Modal -->
+  <div id="spReqModal" class="modal hide">
+    <div class="modal-card">
+      <h3 data-i18n="sp_request">申請修改比例</h3>
+      <div class="job-sub"><span data-i18n="sku">貨編</span>：<strong id="spReqSku"></strong></div>
+      <label data-i18n="sp_new_ratio">想改成的比例</label>
+      <div id="spReqBody"></div>
+      <label data-i18n="sp_reason">申請理由</label>
+      <textarea id="spReqReason" data-i18n-ph="sp_reason_ph" placeholder="請說明為什麼要調整" style="min-height:90px"></textarea>
+      <div style="height:14px"></div>
+      <div class="row">
+        <button id="btnSpReqCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+        <button id="btnSpReqSend" class="btn primary grow" data-i18n="sp_send">送出申請</button>
       </div>
     </div>
   </div>
@@ -448,13 +554,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=44"></script>
-  <script src="js/i18n.js?v=44"></script>
-  <script src="js/auth.js?v=44"></script>
-  <script src="js/report.js?v=44"></script>
-  <script src="js/incident.js?v=44"></script>
-  <script src="js/todo.js?v=44"></script>
-  <script src="js/score.js?v=44"></script>
-  <script src="js/admin.js?v=44"></script>
+  <script src="js/config.js?v=50"></script>
+  <script src="js/i18n.js?v=50"></script>
+  <script src="js/auth.js?v=50"></script>
+  <script src="js/report.js?v=50"></script>
+  <script src="js/incident.js?v=50"></script>
+  <script src="js/todo.js?v=50"></script>
+  <script src="js/home.js?v=50"></script>
+  <script src="js/score.js?v=50"></script>
+  <script src="js/admin.js?v=50"></script>
+  <script src="js/scoreplan.js?v=50"></script>
+  <script src="js/calendar.js?v=50"></script>
+  <script src="js/nav.js?v=50"></script>
+  <script src="js/notify.js?v=50"></script>
 </body>
 </html>

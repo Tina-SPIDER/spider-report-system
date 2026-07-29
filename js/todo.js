@@ -38,7 +38,7 @@ Todo.load = async function () {
   $("#todoSummary").innerHTML = total ? `
     <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px">
       <span class="muted">${t("completion")}</span><strong>${avg}%</strong></div>
-    <div style="height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden">
+    <div style="height:10px;background:var(--track);border-radius:999px;overflow:hidden">
       <div style="height:100%;width:${avg}%;background:var(--go)"></div></div>` : "";
 
   if (rows.length === 0) { $("#todoList").innerHTML = `<p class="muted">${t("todo_empty")}</p>`; return; }
@@ -47,11 +47,11 @@ Todo.load = async function () {
     return `
     <div class="todo-row" style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
       <input type="number" min="1" max="5" value="${r.priority}" data-pri="${r.id}" style="width:48px;text-align:center" title="${t("priority")}">
-      <span class="todo-content" style="flex:1;min-width:120px;${full ? "text-decoration:line-through;color:#999" : ""}">${todoEsc(r.content)}</span>
+      <span class="todo-content" style="flex:1;min-width:120px;${full ? "text-decoration:line-through;opacity:.5" : ""}">${todoEsc(r.content)}</span>
       <input type="date" value="${r.due_date || ""}" data-due="${r.id}" style="width:150px" title="${t("todo_due")}">
       <input type="number" min="0" max="100" step="10" value="${Number(r.progress) || 0}" data-prog="${r.id}" style="width:66px;text-align:center">
       <span class="muted" style="font-size:13px">%</span>
-      <button class="btn small" data-del="${r.id}" style="background:#fee2e2;color:#dc2626">${t("act_delete")}</button>
+      <button class="btn small danger" data-del="${r.id}">${t("act_delete")}</button>
     </div>`;
   }).join("");
   $$("#todoList [data-pri]").forEach((inp) => {

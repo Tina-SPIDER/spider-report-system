@@ -9,7 +9,73 @@ window.I18N = {
     welcome: "歡迎",
 
     nav_report: "報工", nav_score: "我的績效", nav_team: "團體績效", nav_admin: "管理",
-    nav_incident: "異常回報", nav_todo: "我的待辦",
+    nav_incident: "異常回報", nav_todo: "我的待辦", nav_home: "我的看板", nav_cal: "行事曆",
+
+    // 主選單分組
+    grp_mywork: "我的工作台", grp_floor: "現場報工與派工", grp_watch: "看板與監控",
+    grp_perf: "績效管理", grp_sys: "系統管理",
+    admin_incident_review: "異常處理", hdr_tools: "📥 工具/下載",
+
+    // 通知
+    nt_title: "通知", nt_read_all: "全部標為已讀", nt_empty: "目前沒有通知",
+    nt_assigned: "指派了工單 {wo} 給你", nt_incident: "{who} 回報{cat}",
+
+    // 報工紀錄時間欄
+    jb_start: "開始", jb_end: "結束", jb_paused: "暫停(分)",
+    jb_start_d: "開始日期", jb_start_t: "開始時間", jb_end_d: "結束日期", jb_end_t: "結束時間",
+    home_todo_more: "另有 {n} 項待辦（到「我的待辦」看全部）",
+
+    // 行事曆
+    cal_ym: "{y} 年 {m} 月", cal_today: "今天",
+    cal_this_week: "本週工單", cal_this_week_undone: "本週未完成", cal_next_week: "下週工單",
+    cal_no_date: "未排日期", cal_no_date_n: "另有 {n} 張工單沒有指定日期",
+    cal_pick_day: "點月曆上的日期，看那天要做的工單",
+    cal_day_empty: "這天沒有排工單", cal_n_wo: "共 {n} 張",
+
+    // 我的看板
+    home_running: "現在進行中", home_wo: "今天要做的工單", home_todo: "今天要完成的待辦",
+    home_no_wo: "今天沒有要做的工單 👍", home_no_todo: "今天沒有待辦 👍",
+    home_overdue: "逾期", home_today: "今天", home_no_date: "未指定日期",
+    home_mark_done: "完成", home_future_n: "另有 {n} 張工單，日期在今天之後",
+    home_target: "本月目標", home_no_target: "尚未設定本月目標（請主管在「員工管理」設定）",
+    home_month_got: "本月已得 {n} 分", home_target_hit: "🎉 已達成本月目標",
+    home_target_gap: "還差 {n} 分達標", home_target_tip: "本月目標分數（原型，存在瀏覽器）",
+    proto: "原型", refresh: "重新整理",
+
+    // 計分比例（原型）
+    admin_scoreplan: "計分比例", admin_download: "資料下載",
+    sp_proto: "⚠️ 原型階段：這頁的設定存在你的瀏覽器，不會寫進資料庫，也不會影響實際計分。",
+    sp_hint: "選一份 ERP「加工製程單明細」，系統會依各站「總標準工時」算出建議比例，再由指定的人調整、確認鎖定。之後同貨編的新工單就沿用這個比例。",
+    sp_reading: "讀取中…", sp_read_done: "讀到 {n} 個貨編",
+    sp_no_file: "尚未讀取檔案，請先選擇 ERP 加工製程單", sp_sku_list: "貨編清單",
+    sp_stations: "站數", sp_unset: "未設定", sp_draft: "草稿", sp_confirmed: "已確認",
+    sp_edit: "設定比例", sp_seq: "代碼", sp_type: "類型", sp_inhouse: "廠內",
+    sp_std: "ERP工時", sp_suggest: "建議比例", sp_ratio: "比例%", sp_rows: "筆",
+    sp_actual: "實際工時/顆", sp_samples: "樣本", sp_est: "推估", sp_loading_actual: "讀取實際工時中…",
+    sp_basis_actual: "建議比例依據：過去報工的「實際工時中位數（每顆）」。已剔除單顆超過 8 小時的紀錄（多半是忘了按結束）。樣本數少於 3 筆的站以黃色標示，參考性較低。",
+    sp_basis_std: "建議比例依據：ERP 的標準工時（因為這個貨編還沒有實際報工紀錄）。",
+    sp_basis_even: "建議比例依據：平均分配（這個貨編既無實際報工紀錄，ERP 也沒填工時）。",
+    sp_must_100: "廠內各站比例合計必須等於 100%", sp_use_suggest: "套用建議比例",
+    sp_save_draft: "儲存草稿", sp_confirm: "確認並鎖定",
+    sp_confirm_ask: "確認後就會鎖定，之後要修改必須提出申請。確定嗎？",
+    sp_confirmed_ok: "已確認並鎖定", sp_confirmed_by: "由 {who} 於 {at} 確認",
+    sp_request: "申請修改比例", sp_new_ratio: "想改成的比例", sp_reason: "申請理由",
+    sp_reason_ph: "請說明為什麼要調整", sp_send: "送出申請",
+    sp_need_reason: "請填寫申請理由", sp_request_sent: "申請已送出，等待主管核准",
+    sp_requests: "修改申請", sp_no_request: "目前沒有修改申請",
+    sp_pending: "待審", sp_approved: "核准", sp_rejected: "駁回",
+    sp_approve: "核准", sp_reject: "駁回",
+    sp_approved_ok: "已核准，新比例已生效", sp_rejected_ok: "已駁回",
+    sp_requested_by: "{who} 於 {at} 提出", sp_reviewed_by: "{who} 於 {at} 審核",
+
+    // 資料下載
+    dl_hint: "把資料庫每張資料表各存成一個工作表，輸出成單一 Excel 檔。資料量大時需要等一下。",
+    dl_btn: "一鍵下載全部資料", dl_working: "下載中… {tbl} ({n})",
+    dl_done: "完成，共 {n} 筆", dl_fail: "下載失敗（未產生檔案）",
+    dl_empty: "抓不到任何資料，可能是登入已過期，請重新登入再試",
+
+    wd0: "週日", wd1: "週一", wd2: "週二", wd3: "週三", wd4: "週四", wd5: "週五", wd6: "週六",
+
     todo_ph: "輸入待辦事項…", todo_empty: "目前沒有待辦事項", admin_todos: "員工待辦",
     priority: "優先", completion: "平均完成度", progress_col: "完成%", todo_due: "預計完成日",
     inc_category: "類別", inc_quality: "品質異常", inc_equipment: "設備異常", inc_hours: "時數異常", inc_other: "其他",
@@ -38,6 +104,13 @@ window.I18N = {
     status_running: "進行中", status_paused: "已暫停",
     wo_not_found: "查無此工單", no_running: "目前沒有進行中的工單",
     my_assignments: "我的指派工單", no_assignments: "目前沒有指派的工單",
+    // 分批報工的顆數進度
+    st_progress: "本站進度", st_done_n: "已完成 {n} 顆",
+    st_of_total: "已完成 {n} / {t} 顆，還差 {r} 顆", st_all_done: "已完成 {n} / {t} 顆",
+    st_none_yet: "這一站還沒有人報工", st_qty_col: "完成顆數",
+    wo_qty: "工單數量", progress_partial: "部分完成",
+    qty_required: "請填寫生產數量（整批報廢請填 0）",
+    force_qty_ask: "強制結束 {wo} 的「{st}」\n\n請輸入這次的完成數量（整批報廢請填 0）：",
     act_report: "報工", admin_assign: "工單指派", assign: "指派",
     select_employee: "選擇員工", assigned_list: "已指派清單", any_station: "（不指定站別）", due_date: "製作日期", assigner: "指派人",
     finish_title: "結束報工",
@@ -55,6 +128,8 @@ window.I18N = {
     admin_jobs: "報工紀錄", work_min: "工時(分)", status_done: "已完成", from: "起", to: "迄",
     actions: "操作", act_edit: "編輯", act_delete: "刪除", act_forceend: "強制結束",
     export_excel: "匯出 Excel", confirm_delete: "確定刪除這筆報工？",
+    jobs_total: "共 {n} 筆", page_x: "第 {p} / {t} 頁", prev_page: "上一頁", next_page: "下一頁",
+    exporting: "匯出中… {n}/{t}", export_ok: "已匯出 {n} 筆", export_fail: "匯出失敗（未產生檔案）",
     edit_job: "更正報工", saved_del: "已刪除",
     reset_pw: "重設密碼", enter_new_pw: "請輸入新密碼（至少 6 碼）", pw_reset_ok: "密碼已重設",
     admin_progress: "工單進度", progress_pct: "完成度", maker_done: "完成者", done_time: "完成時間",
@@ -98,7 +173,66 @@ window.I18N = {
     welcome: "Xin chào",
 
     nav_report: "Báo công", nav_score: "Thành tích", nav_team: "Thành tích nhóm", nav_admin: "Quản lý",
-    nav_incident: "Báo bất thường", nav_todo: "Việc cần làm",
+    nav_incident: "Báo bất thường", nav_todo: "Việc cần làm", nav_home: "Bảng của tôi", nav_cal: "Lịch",
+
+    grp_mywork: "Bàn làm việc", grp_floor: "Báo công & Giao việc", grp_watch: "Theo dõi",
+    grp_perf: "Thành tích", grp_sys: "Quản trị hệ thống",
+    admin_incident_review: "Xử lý bất thường", hdr_tools: "📥 Công cụ/Tải",
+
+    nt_title: "Thông báo", nt_read_all: "Đánh dấu đã đọc", nt_empty: "Chưa có thông báo",
+    nt_assigned: "Đã giao lệnh {wo} cho bạn", nt_incident: "{who} báo {cat}",
+
+    jb_start: "Bắt đầu", jb_end: "Kết thúc", jb_paused: "Tạm dừng(phút)",
+    jb_start_d: "Ngày BĐ", jb_start_t: "Giờ BĐ", jb_end_d: "Ngày KT", jb_end_t: "Giờ KT",
+    home_todo_more: "Còn {n} việc nữa (xem ở \"Việc cần làm\")",
+
+    cal_ym: "Tháng {m}/{y}", cal_today: "Hôm nay",
+    cal_this_week: "Đơn tuần này", cal_this_week_undone: "Tuần này chưa xong", cal_next_week: "Đơn tuần sau",
+    cal_no_date: "Chưa xếp ngày", cal_no_date_n: "Còn {n} đơn chưa chỉ định ngày",
+    cal_pick_day: "Bấm vào ngày trên lịch để xem đơn hôm đó",
+    cal_day_empty: "Ngày này không có đơn", cal_n_wo: "Tổng {n} đơn",
+
+    home_running: "Đang làm", home_wo: "Đơn cần làm hôm nay", home_todo: "Việc cần xong hôm nay",
+    home_no_wo: "Hôm nay không có đơn 👍", home_no_todo: "Hôm nay không có việc 👍",
+    home_overdue: "Quá hạn", home_today: "Hôm nay", home_no_date: "Chưa định ngày",
+    home_mark_done: "Xong", home_future_n: "Còn {n} đơn có ngày sau hôm nay",
+    home_target: "Mục tiêu tháng", home_no_target: "Chưa đặt mục tiêu tháng này (quản lý đặt ở \"Quản lý NV\")",
+    home_month_got: "Tháng này được {n} điểm", home_target_hit: "🎉 Đã đạt mục tiêu tháng",
+    home_target_gap: "Còn thiếu {n} điểm", home_target_tip: "Điểm mục tiêu tháng (bản thử, lưu ở trình duyệt)",
+    proto: "Bản thử", refresh: "Làm mới",
+
+    admin_scoreplan: "Tỷ lệ tính điểm", admin_download: "Tải dữ liệu",
+    sp_proto: "⚠️ Bản thử: thiết lập ở trang này lưu trong trình duyệt, không ghi vào CSDL, không ảnh hưởng tính điểm thực tế.",
+    sp_hint: "Chọn tệp \"加工製程單明細\" từ ERP, hệ thống tính tỷ lệ đề xuất theo giờ chuẩn từng công đoạn, sau đó người phụ trách điều chỉnh và khóa lại. Lệnh mới cùng mã hàng sẽ dùng lại tỷ lệ này.",
+    sp_reading: "Đang đọc…", sp_read_done: "Đọc được {n} mã hàng",
+    sp_no_file: "Chưa đọc tệp, hãy chọn tệp ERP trước", sp_sku_list: "Danh sách mã hàng",
+    sp_stations: "Số CĐ", sp_unset: "Chưa đặt", sp_draft: "Nháp", sp_confirmed: "Đã xác nhận",
+    sp_edit: "Đặt tỷ lệ", sp_seq: "Mã", sp_type: "Loại", sp_inhouse: "Nội bộ",
+    sp_std: "Giờ ERP", sp_suggest: "Đề xuất", sp_ratio: "Tỷ lệ%", sp_rows: "dòng",
+    sp_actual: "Giờ thực/cái", sp_samples: "Mẫu", sp_est: "Ước tính", sp_loading_actual: "Đang đọc giờ thực tế…",
+    sp_basis_actual: "Tỷ lệ đề xuất dựa trên trung vị giờ thực tế mỗi cái từ báo công trước đây. Đã loại bản ghi trên 8 giờ/cái (thường là quên bấm kết thúc). Trạm có dưới 3 mẫu được tô vàng, độ tin cậy thấp.",
+    sp_basis_std: "Tỷ lệ đề xuất dựa trên giờ chuẩn ERP (mã hàng này chưa có báo công thực tế).",
+    sp_basis_even: "Tỷ lệ đề xuất: chia đều (mã hàng này không có báo công thực tế, ERP cũng không có giờ).",
+    sp_must_100: "Tổng tỷ lệ các công đoạn nội bộ phải bằng 100%", sp_use_suggest: "Dùng tỷ lệ đề xuất",
+    sp_save_draft: "Lưu nháp", sp_confirm: "Xác nhận & khóa",
+    sp_confirm_ask: "Sau khi xác nhận sẽ bị khóa, muốn sửa phải xin duyệt. Chắc chưa?",
+    sp_confirmed_ok: "Đã xác nhận và khóa", sp_confirmed_by: "{who} xác nhận lúc {at}",
+    sp_request: "Xin sửa tỷ lệ", sp_new_ratio: "Tỷ lệ muốn đổi thành", sp_reason: "Lý do",
+    sp_reason_ph: "Nêu lý do cần điều chỉnh", sp_send: "Gửi đơn",
+    sp_need_reason: "Hãy nhập lý do", sp_request_sent: "Đã gửi, chờ quản lý duyệt",
+    sp_requests: "Đơn xin sửa", sp_no_request: "Chưa có đơn xin sửa",
+    sp_pending: "Chờ duyệt", sp_approved: "Đã duyệt", sp_rejected: "Từ chối",
+    sp_approve: "Duyệt", sp_reject: "Từ chối",
+    sp_approved_ok: "Đã duyệt, tỷ lệ mới có hiệu lực", sp_rejected_ok: "Đã từ chối",
+    sp_requested_by: "{who} gửi lúc {at}", sp_reviewed_by: "{who} duyệt lúc {at}",
+
+    dl_hint: "Xuất mỗi bảng dữ liệu thành một sheet, gộp thành một tệp Excel. Dữ liệu nhiều sẽ mất chút thời gian.",
+    dl_btn: "Tải toàn bộ dữ liệu", dl_working: "Đang tải… {tbl} ({n})",
+    dl_done: "Xong, tổng {n} dòng", dl_fail: "Tải thất bại (chưa tạo tệp)",
+    dl_empty: "Không lấy được dữ liệu, có thể phiên đăng nhập đã hết hạn, hãy đăng nhập lại",
+
+    wd0: "CN", wd1: "Thứ 2", wd2: "Thứ 3", wd3: "Thứ 4", wd4: "Thứ 5", wd5: "Thứ 6", wd6: "Thứ 7",
+
     todo_ph: "Nhập việc cần làm…", todo_empty: "Chưa có việc cần làm", admin_todos: "Việc của NV",
     priority: "Ưu tiên", completion: "Hoàn thành TB", progress_col: "Hoàn thành%", todo_due: "Ngày dự kiến",
     inc_category: "Loại", inc_quality: "Bất thường chất lượng", inc_equipment: "Bất thường thiết bị", inc_hours: "Bất thường giờ công", inc_other: "Khác",
@@ -126,6 +260,12 @@ window.I18N = {
     status_running: "Đang làm", status_paused: "Tạm dừng",
     wo_not_found: "Không tìm thấy lệnh", no_running: "Không có đơn đang làm",
     my_assignments: "Đơn được giao", no_assignments: "Chưa có đơn được giao",
+    st_progress: "Tiến độ CĐ", st_done_n: "Đã xong {n} cái",
+    st_of_total: "Đã xong {n} / {t} cái, còn {r} cái", st_all_done: "Đã xong {n} / {t} cái",
+    st_none_yet: "Công đoạn này chưa ai báo công", st_qty_col: "SL hoàn thành",
+    wo_qty: "SL lệnh SX", progress_partial: "Xong một phần",
+    qty_required: "Hãy nhập số lượng hoàn thành (phế toàn bộ thì nhập 0)",
+    force_qty_ask: "Kết thúc {wo} - \"{st}\"\n\nNhập số lượng hoàn thành (phế toàn bộ nhập 0):",
     act_report: "Báo công", admin_assign: "Giao lệnh SX", assign: "Giao",
     select_employee: "Chọn nhân viên", assigned_list: "Danh sách đã giao", any_station: "(Không chỉ định)", due_date: "Ngày làm", assigner: "Người giao",
     finish_title: "Kết thúc báo công",
@@ -141,6 +281,8 @@ window.I18N = {
     admin_jobs: "Hồ sơ báo công", work_min: "Phút", status_done: "Hoàn thành", from: "Từ", to: "Đến",
     actions: "Thao tác", act_edit: "Sửa", act_delete: "Xóa", act_forceend: "Kết thúc",
     export_excel: "Xuất Excel", confirm_delete: "Xóa bản ghi này?",
+    jobs_total: "Tổng {n} bản ghi", page_x: "Trang {p}/{t}", prev_page: "Trang trước", next_page: "Trang sau",
+    exporting: "Đang xuất… {n}/{t}", export_ok: "Đã xuất {n} bản ghi", export_fail: "Xuất thất bại (chưa tạo tệp)",
     edit_job: "Sửa báo công", saved_del: "Đã xóa",
     reset_pw: "Đặt lại MK", enter_new_pw: "Nhập mật khẩu mới (≥6)", pw_reset_ok: "Đã đặt lại mật khẩu",
     admin_progress: "Tiến độ lệnh SX", progress_pct: "Tiến độ", maker_done: "Người làm", done_time: "Thời gian xong",
@@ -197,6 +339,8 @@ window.setLang = function (l) {
   window.LANG = l;
   localStorage.setItem("lang", l);
   window.applyI18n();
+  // 選單是 JS 產生的，換語言要重畫才會跟著變
+  if (window.Nav && window.App && App.ME) Nav.render();
   if (typeof window.renderActiveView === "function") window.renderActiveView();
 };
 

@@ -32,6 +32,20 @@ Report.render = async function () {
   await Report.loadAssignments();
   await Report.loadRunning();
 
+  // 從「我的看板」按報工進來 → 自動帶入工單並選好站別
+  if (Report._pendingWo) {
+    const p = Report._pendingWo;
+    Report._pendingWo = null;
+    Report._remind = false;          // 看板已看過進行中清單，不再彈提醒
+    $("#inWoNo").value = p.wo;
+    await Report.queryWo();
+    if (p.st) {
+      const sel = $("#selStation");
+      if ([...sel.options].some((o) => o.value === p.st)) { sel.value = p.st; Report.updateDrawing(); }
+    }
+    $("#inWoNo").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   // 一進報工頁，若有未完成的報工就跳出提醒
   if (Report._remind) {
     Report._remind = false;
@@ -82,6 +96,7 @@ Report.clearLookup = function () {
   if ($("#selMachine")) $("#selMachine").innerHTML = "";
   if ($("#inNewMachine")) { $("#inNewMachine").value = ""; $("#inNewMachine").classList.add("hide"); }
   if ($("#drawingBox")) $("#drawingBox").innerHTML = "";
+  if ($("#stationProgress")) $("#stationProgress").innerHTML = "";
 };
 
 Report.queryWo = async function () {
@@ -120,7 +135,9 @@ Report.queryWo = async function () {
     $("#inNewStation").classList.toggle("hide", !isNew);
     if (isNew) $("#inNewStation").focus();
     Report.updateDrawing();
+    Report.updateStationProgress();
   };
+  $("#stationProgress").innerHTML = "";
   $("#inNewStation").classList.add("hide");
   $("#drawingBox").innerHTML = "";
 
@@ -141,6 +158,47 @@ Report.queryWo = async function () {
   $("#inNewMachine").classList.add("hide");
 
   $("#woInfo").classList.remove("hide");
+};
+
+// 選到某站 → 顯示「這一站做了幾顆」。分批做的人才知道還剩多少、不會以為已經做完。
+// 工單總數量(work_orders.qty)還沒建欄位時，就只顯示已完成顆數。
+Report.updateStationProgress = async function () {
+  const box = $("#stationProgress");
+  if (!box || !Report.current) return;
+  const station = $("#selStation").value;
+  if (!station || station === "__new__") { box.innerHTML = ""; return; }
+
+  const reqId = (Report._spReq = (Report._spReq || 0) + 1);
+  const { data, error } = await sb.from("jobs")
+    .select("qty,status,station")
+    .eq("work_order_no", Report.current.work_order_no)
+    .eq("station", station)
+    .eq("status", "done");
+  if (reqId !== Report._spReq) return;      // 期間又換了站，丟棄舊結果
+  if (error) { box.innerHTML = ""; return; }
+
+  const done = App.stationDone(data, station);
+  const total = Number(Report.current.qty);
+  const hasTotal = isFinite(total) && total > 0;
+  const left = hasTotal ? Math.max(0, total - done) : null;
+
+  let cls = "go", txt;
+  if (!hasTotal) {
+    txt = done > 0 ? t("st_done_n", { n: done }) : t("st_none_yet");
+    cls = done > 0 ? "warn" : "mute";
+  } else if (left > 0) {
+    txt = t("st_of_total", { n: done, t: total, r: left });
+    cls = done > 0 ? "warn" : "mute";
+  } else {
+    txt = t("st_all_done", { n: done, t: total });
+    cls = "go";
+  }
+  const bar = hasTotal
+    ? `<div class="bar" style="margin-top:6px"><div style="width:${Math.min(100, Math.round(done / total * 100))}%;background:var(--${cls === "go" ? "go" : "warn"})"></div></div>`
+    : "";
+  box.innerHTML = `<div class="station-progress">
+    <span class="badge ${cls}">${t("st_progress")}</span>
+    <span class="sp-txt">${txt}</span>${bar}</div>`;
 };
 
 // 選到某站 → 自動在下方帶出「該站圖面」獨立預覽欄（可放大縮小）
@@ -288,7 +346,7 @@ Report.loadAssignments = async function () {
     const wo = String(a.work_order_no).replace(/"/g, "&quot;");
     const st = a.station ? String(a.station).replace(/"/g, "&quot;") : "";
     const stTag = a.station ? ` · 🔧 ${a.station}` : "";
-    const dateTag = a.due_date ? `<span class="badge" style="background:#6aac1e">📅 ${a.due_date}</span>` : "";
+    const dateTag = a.due_date ? `<span class="badge go">📅 ${a.due_date}</span>` : "";
     const assigner = a.assigned_by && aMap[a.assigned_by] ? ` · ${t("assigner")}: ${aMap[a.assigned_by]}` : "";
     return `<div class="job-card" style="border-left-color:var(--primary)">
       <div class="job-head"><strong>${a.work_order_no}</strong>
@@ -410,10 +468,12 @@ Report.action = async function (id, act) {
     const { error } = await sb.rpc("pause_job", { p_job_id: id });
     if (error) return toast(friendlyErr(error), "err");
     await Report.loadRunning();
+    if (window.Home) Home.refreshIfActive();
   } else if (act === "resume") {
     const { error } = await sb.rpc("resume_job", { p_job_id: id });
     if (error) return toast(friendlyErr(error), "err");
     await Report.loadRunning();
+    if (window.Home) Home.refreshIfActive();
   } else if (act === "finish") {
     Report.openFinish(id);
   }
@@ -433,7 +493,14 @@ Report.openFinish = function (id) {
 
 Report.confirmFinish = async function () {
   const id = $("#finishJobId").value;
-  const qty = $("#finQty").value === "" ? null : Number($("#finQty").value);
+  // 生產數量必填：沒填就沒辦法累計「做了幾顆」，分批報工的進度會永遠停在 0。
+  // 允許填 0（整批報廢的情況）。
+  const qtyRaw = $("#finQty").value.trim();
+  if (qtyRaw === "" || !isFinite(Number(qtyRaw)) || Number(qtyRaw) < 0) {
+    $("#finQty").focus();
+    return toast(t("qty_required"), "err");
+  }
+  const qty = Number(qtyRaw);
   const scrap = $("#finScrap").value === "" ? null : Number($("#finScrap").value);
   const note = $("#finNote").value.trim() || null;
   const workContent = $("#finWork").value.trim() || null;
@@ -445,4 +512,6 @@ Report.confirmFinish = async function () {
   const st = data ? data.status : "";
   toast(`${t("finish")} ✓ ${st ? "(" + st + ")" : ""}`, "ok");
   await Report.loadRunning();
+  Report.updateStationProgress();      // 剛結束的顆數要立刻反映在進度上
+  if (window.Home) Home.refreshIfActive();
 };

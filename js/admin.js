@@ -25,6 +25,66 @@ Admin.render = function () {
   else if (Admin.tab === "wo") Admin.initWoImport();
   else if (Admin.tab === "rules") Admin.loadRules();
   else if (Admin.tab === "overview") Admin.loadOverview();
+  else if (Admin.tab === "download") Admin.initDownload();
+  else if (Admin.tab === "scoreplan") ScorePlan.render();
+};
+
+// ---------- 一鍵下載全部資料 ----------
+// 把每張資料表各存成一個工作表，輸出單一 Excel 檔。
+// 分頁抓完整，中途失敗就中止，不產生不完整的檔案。
+Admin.DL_TABLES = ["employees", "stations", "machines", "work_orders", "work_order_routes",
+  "jobs", "score_log", "assignments", "todos", "incidents"];
+Admin.DL_PAGE = 1000;
+
+Admin.initDownload = function () {
+  $("#btnDownloadAll").onclick = Admin.downloadAll;
+  $("#dlResult").innerHTML = "";
+};
+
+Admin.downloadAll = async function () {
+  const btn = $("#btnDownloadAll");
+  const label = btn.textContent;
+  btn.disabled = true;
+  const box = $("#dlResult");
+  const done = [];
+  try {
+    const wb = XLSX.utils.book_new();
+    for (const tbl of Admin.DL_TABLES) {
+      const rows = [];
+      for (let off = 0; ; off += Admin.DL_PAGE) {
+        const { data, error } = await sb.from(tbl).select("*").range(off, off + Admin.DL_PAGE - 1);
+        if (error) throw new Error(`${tbl}: ${error.message}`);
+        const page = data || [];
+        rows.push(...page);
+        btn.textContent = t("dl_working", { tbl, n: rows.length });
+        if (page.length < Admin.DL_PAGE) break;
+      }
+      // 欄位取所有列的聯集，避免某些列缺欄就漏掉整欄
+      const cols = [];
+      rows.forEach((r) => Object.keys(r).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
+      const aoa = [cols.length ? cols : ["(no data)"]];
+      rows.forEach((r) => aoa.push(cols.map((c) => {
+        const v = r[c];
+        return (v && typeof v === "object") ? JSON.stringify(v) : (v == null ? "" : v);
+      })));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), tbl.slice(0, 31));
+      done.push({ tbl, n: rows.length });
+      box.innerHTML = done.map((d) => `✓ ${d.tbl} — ${d.n} ${t("sp_rows")}`).join("<br>");
+    }
+    const total = done.reduce((a, b) => a + b.n, 0);
+    // 全部 0 筆多半是登入過期／權限問題，寧可不給檔案也不要給空檔
+    if (total === 0) throw new Error(t("dl_empty"));
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `報工系統資料_${stamp}.xlsx`);
+    box.innerHTML = done.map((d) => `✓ ${d.tbl} — ${d.n} ${t("sp_rows")}`).join("<br>")
+      + `<br><strong>${t("dl_done", { n: total })}</strong>`;
+    toast(t("dl_done", { n: total }), "ok");
+  } catch (e) {
+    box.innerHTML = `<span style="color:var(--err)">${t("dl_fail")}：${spEsc(e.message || e)}</span>`;
+    toast(t("dl_fail"), "err");
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
 };
 
 // ---------- 即時看板 ----------
@@ -201,54 +261,106 @@ Admin.initJobs = function () {
     $("#jbFrom").value = fmt(first);
     $("#jbTo").value = fmt(now);
   }
-  $("#btnJobsQuery").onclick = Admin.loadJobs;
+  $("#btnJobsQuery").onclick = () => { Admin.jobsPage = 0; Admin.loadJobs(); };
   $("#btnJobsExport").onclick = Admin.exportJobs;
+  Admin.jobsPage = 0;
   Admin.loadJobs();
 };
 
-Admin.loadJobs = async function () {
+Admin.JOBS_PAGE_SIZE = 200;    // 畫面每頁筆數
+Admin.JOBS_FETCH_SIZE = 1000;  // 匯出時每次抓的筆數
+Admin.jobsPage = 0;
+
+// 查詢欄位 → 時間區間；排序一律 start_at + id，
+// 只用 start_at 排序不唯一（同秒開工會並列），分頁會重複或漏抓
+Admin.jobsQuery = function () {
   const from = $("#jbFrom").value;
   const to = $("#jbTo").value;
-  if (!from || !to) return;
+  if (!from || !to) return null;
   const toNext = new Date(to + "T00:00:00");
   toNext.setDate(toNext.getDate() + 1);
+  return { from: from + "T00:00:00", toNext: toNext.toISOString() };
+};
 
-  const { data, error } = await sb.from("jobs")
-    .select("id,start_at,end_at,work_minutes,qty,scrap_qty,note,work_content,station,status,work_order_no,employees(name,team)")
-    .gte("start_at", from + "T00:00:00")
-    .lt("start_at", toNext.toISOString())
+Admin.jobsSelect = function (opts) {
+  const q = Admin.jobsQuery();
+  return sb.from("jobs")
+    .select("id,start_at,end_at,paused_minutes,work_minutes,qty,scrap_qty,note,work_content,station,status,work_order_no,employees(name,team)", opts)
+    .gte("start_at", q.from)
+    .lt("start_at", q.toNext)
     .order("start_at", { ascending: false })
-    .limit(2000);
+    .order("id", { ascending: false });
+};
+
+Admin.loadJobs = async function () {
+  if (!Admin.jobsQuery()) return;
+  const size = Admin.JOBS_PAGE_SIZE;
+  const off = (Admin.jobsPage || 0) * size;
+
+  const { data, error, count } = await Admin.jobsSelect({ count: "exact" }).range(off, off + size - 1);
   if (error) return toast(t("err") + ": " + error.message, "err");
 
   Admin._jobs = data || [];
+  Admin._jobsCount = count || 0;
   const rows = Admin._jobs;
+  Admin.renderJobsPager(Admin._jobsCount);
   if (rows.length === 0) { $("#jobsTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
 
   const stMap = { running: t("status_running"), paused: t("status_paused"), done: t("status_done") };
   const head = `<tr>
-    <th>${t("date")}</th><th>${t("name")}</th><th>${t("team")}</th>
+    <th>${t("name")}</th><th>${t("team")}</th>
     <th>${t("wo_no")}</th><th>${t("station")}</th><th>${t("work_content")}</th>
-    <th class="r">${t("work_min")}</th><th class="r">${t("qty")}</th><th class="r">${t("scrap")}</th>
+    <th>${t("jb_start")}</th><th>${t("jb_end")}</th>
+    <th class="r">${t("jb_paused")}</th><th class="r">${t("work_min")}</th>
+    <th class="r">${t("qty")}</th><th class="r">${t("scrap")}</th>
     <th>${t("note")}</th><th>${t("status")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((j) => {
     const emp = j.employees || {};
     const wm = j.work_minutes != null ? Math.round(j.work_minutes) : "";
+    const pm = Number(j.paused_minutes) || 0;
     const force = j.status !== "done" ? `<button class="btn small" data-act="force" data-id="${j.id}">${t("act_forceend")}</button>` : "";
+    const stamp = (v) => v ? `${fmtDate(v)}<br><span class="muted" style="font-size:14px">${fmtTime(v)}</span>` : "";
     return `<tr>
-      <td>${fmtDate(j.start_at)}</td><td>${emp.name || ""}</td><td>${emp.team || ""}</td>
+      <td>${emp.name || ""}</td><td>${emp.team || ""}</td>
       <td>${j.work_order_no}</td><td>${j.station}</td><td>${j.work_content || ""}</td>
-      <td class="r">${wm}</td><td class="r">${j.qty != null ? j.qty : ""}</td><td class="r">${j.scrap_qty != null ? j.scrap_qty : ""}</td>
+      <td style="white-space:nowrap">${stamp(j.start_at)}</td><td style="white-space:nowrap">${stamp(j.end_at)}</td>
+      <td class="r">${pm ? pm : ""}</td><td class="r">${wm}</td>
+      <td class="r">${j.qty != null ? j.qty : ""}</td><td class="r">${j.scrap_qty != null ? j.scrap_qty : ""}</td>
       <td>${j.note || ""}</td><td>${stMap[j.status] || j.status}</td>
       <td style="white-space:nowrap">
         <button class="btn small ghost" data-act="edit" data-id="${j.id}">${t("act_edit")}</button>
         ${force}
-        <button class="btn small" data-act="del" data-id="${j.id}" style="background:#fee2e2;color:#dc2626">${t("act_delete")}</button>
+        <button class="btn small danger" data-act="del" data-id="${j.id}">${t("act_delete")}</button>
       </td></tr>`;
   }).join("");
   $("#jobsTable").innerHTML = `<table>${head}${body}</table>`;
 
   $$("#jobsTable button[data-act]").forEach((b) => { b.onclick = () => Admin.jobAction(b.dataset.act, b.dataset.id); });
+};
+
+// 分頁列：明確顯示總筆數，不會再有「悄悄被截斷」的情形
+Admin.renderJobsPager = function (total) {
+  const box = $("#jobsPager");
+  if (!box) return;
+  const size = Admin.JOBS_PAGE_SIZE;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const cur = Math.min(Admin.jobsPage || 0, pages - 1);
+  Admin.jobsPage = cur;
+  box.innerHTML = `
+    <div class="row" style="align-items:center;justify-content:space-between;margin-top:10px">
+      <span class="muted" style="font-size:14px">${t("jobs_total", { n: total })} · ${t("page_x", { p: cur + 1, t: pages })}</span>
+      <span class="row" style="flex:none;gap:6px">
+        <button class="btn small ghost" data-pg="prev"${cur <= 0 ? " disabled" : ""}>${t("prev_page")}</button>
+        <button class="btn small ghost" data-pg="next"${cur >= pages - 1 ? " disabled" : ""}>${t("next_page")}</button>
+      </span>
+    </div>`;
+  $$("#jobsPager button[data-pg]").forEach((b) => {
+    b.onclick = () => {
+      Admin.jobsPage += (b.dataset.pg === "next" ? 1 : -1);
+      Admin.loadJobs();
+      $("#jobsTable").scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+  });
 };
 
 Admin.jobAction = async function (act, id) {
@@ -269,7 +381,13 @@ Admin.jobAction = async function (act, id) {
     if (error) return toast(t("err") + ": " + error.message, "err");
     toast(t("saved_del"), "ok"); Admin.loadJobs();
   } else if (act === "force") {
-    const { error } = await sb.rpc("end_job", { p_job_id: id });
+    // 以前強制結束不帶數量，做出來的紀錄 qty 是空的（現有 5 筆就這樣來的），
+    // 顆數進度會算不出來，所以改成一定要問。
+    const ans = prompt(t("force_qty_ask", { wo: j.work_order_no, st: j.station }));
+    if (ans === null) return;
+    const q = Number(String(ans).trim());
+    if (!isFinite(q) || q < 0 || String(ans).trim() === "") return toast(t("qty_required"), "err");
+    const { error } = await sb.rpc("end_job", { p_job_id: id, p_qty: q });
     if (error) return toast(t("err") + ": " + error.message, "err");
     toast(t("ok"), "ok"); Admin.loadJobs();
   }
@@ -277,9 +395,15 @@ Admin.jobAction = async function (act, id) {
 
 Admin.saveJobEdit = async function () {
   const id = $("#jeId").value;
+  // 更正報工也不能把數量清空，否則又製造出算不出顆數的紀錄
+  const qtyRaw = $("#jeQty").value.trim();
+  if (qtyRaw === "" || !isFinite(Number(qtyRaw)) || Number(qtyRaw) < 0) {
+    $("#jeQty").focus();
+    return toast(t("qty_required"), "err");
+  }
   const upd = {
     work_content: $("#jeWork").value.trim() || null,
-    qty: $("#jeQty").value === "" ? null : Number($("#jeQty").value),
+    qty: Number(qtyRaw),
     scrap_qty: $("#jeScrap").value === "" ? null : Number($("#jeScrap").value),
     note: $("#jeNote").value.trim() || null,
   };
@@ -289,21 +413,52 @@ Admin.saveJobEdit = async function () {
   toast(t("saved"), "ok"); Admin.loadJobs();
 };
 
-Admin.exportJobs = function () {
-  const rows = Admin._jobs || [];
+// 匯出 Excel：抓完整區間（分頁抓完為止），不受畫面分頁影響。
+// 中途失敗就中止，不產生「看起來正常但少了幾百筆」的檔案。
+Admin.exportJobs = async function () {
+  if (!Admin.jobsQuery()) return;
+  const btn = $("#btnJobsExport");
+  const label = btn.textContent;
+  btn.disabled = true;
+
+  const size = Admin.JOBS_FETCH_SIZE;
+  const rows = [];
+  let total = Admin._jobsCount || 0;
+  try {
+    for (let off = 0; ; off += size) {
+      const opts = off === 0 ? { count: "exact" } : undefined;
+      const { data, error, count } = await Admin.jobsSelect(opts).range(off, off + size - 1);
+      if (error) throw error;
+      if (off === 0 && count != null) total = count;
+      const page = data || [];
+      rows.push(...page);
+      btn.textContent = t("exporting", { n: rows.length, t: total });
+      if (page.length < size) break;
+    }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = label;
+    return toast(t("export_fail") + "：" + friendlyErr(e), "err");
+  }
+  btn.disabled = false; btn.textContent = label;
+
   if (!rows.length) return toast(t("no_data"), "err");
   const stMap = { running: t("status_running"), paused: t("status_paused"), done: t("status_done") };
-  const aoa = [[t("date"), t("name"), t("team"), t("wo_no"), t("station"), t("work_content"),
-    t("work_min"), t("qty"), t("scrap"), t("note"), t("status")]];
+  const aoa = [[t("name"), t("team"), t("wo_no"), t("station"), t("work_content"),
+    t("jb_start_d"), t("jb_start_t"), t("jb_end_d"), t("jb_end_t"),
+    t("jb_paused"), t("work_min"), t("qty"), t("scrap"), t("note"), t("status")]];
   rows.forEach((j) => {
     const e = j.employees || {};
-    aoa.push([fmtDate(j.start_at), e.name || "", e.team || "", j.work_order_no, j.station, j.work_content || "",
+    aoa.push([e.name || "", e.team || "", j.work_order_no, j.station, j.work_content || "",
+      j.start_at ? fmtDate(j.start_at) : "", j.start_at ? fmtTime(j.start_at) : "",
+      j.end_at ? fmtDate(j.end_at) : "", j.end_at ? fmtTime(j.end_at) : "",
+      Number(j.paused_minutes) || 0,
       j.work_minutes != null ? Math.round(j.work_minutes) : "", j.qty != null ? j.qty : "",
       j.scrap_qty != null ? j.scrap_qty : "", j.note || "", stMap[j.status] || j.status]);
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "報工紀錄");
   XLSX.writeFile(wb, `報工紀錄_${$("#jbFrom").value}_${$("#jbTo").value}.xlsx`);
+  toast(t("export_ok", { n: rows.length }), "ok");
 };
 
 // ---------- 員工待辦（主管檢視） ----------
@@ -321,7 +476,7 @@ Admin.loadTodos = async function () {
     const e = r.employees || {}; const pg = Number(r.progress) || 0;
     return `<tr><td>${fmtDate(r.created_at)}</td><td>${e.name || ""}</td><td>${e.team || ""}</td>
       <td><span class="badge" style="background:${priColor(r.priority)}">${r.priority}</span></td>
-      <td style="${pg >= 100 ? "text-decoration:line-through;color:#999" : ""}">${esc(r.content)}</td>
+      <td style="${pg >= 100 ? "text-decoration:line-through;opacity:.5" : ""}">${esc(r.content)}</td>
       <td>${r.due_date || "-"}</td><td class="r">${pg}%</td></tr>`;
   }).join("");
   $("#todosTable").innerHTML = `<table>${head}${body}</table>`;
@@ -357,7 +512,7 @@ Admin.loadMachMgr = async function () {
     <tr data-code="${String(m.code).replace(/"/g, "&quot;")}">
       <td>${m.name}</td>
       <td style="text-align:center"><input type="checkbox" data-act ${m.active ? "checked" : ""}></td>
-      <td><button class="btn small" data-del style="background:#fee2e2;color:#dc2626">${t("act_delete")}</button></td>
+      <td><button class="btn small danger" data-del>${t("act_delete")}</button></td>
     </tr>`).join("");
   $("#machMgrTable").innerHTML = `<table>${head}${body}</table>`;
   $$("#machMgrTable [data-act]").forEach((c) => {
@@ -396,7 +551,7 @@ Admin.loadIncidents = async function () {
       <td>${done ? '<span class="badge go">已處理</span>' : '<span class="badge warn">待處理</span>'}</td>
       <td style="white-space:nowrap">
         <button class="btn small ${done ? "ghost" : "primary"}" data-toggle="${r.id}" data-st="${done ? "待處理" : "已處理"}">${done ? "待處理" : "標記已處理"}</button>
-        <button class="btn small" data-del="${r.id}" style="background:#fee2e2;color:#dc2626">${t("act_delete")}</button>
+        <button class="btn small danger" data-del="${r.id}">${t("act_delete")}</button>
       </td></tr>`;
   }).join("");
   $("#incTable").innerHTML = `<table>${head}${body}</table>`;
@@ -465,13 +620,46 @@ Admin.loadAssignList = async function () {
   const empMap = {};
   if (ids.length) { const { data: es } = await sb.from("employees").select("id,name").in("id", ids); (es || []).forEach((e) => (empMap[e.id] = e.name)); }
 
+  // 站別下拉要列該工單的製程站，所以一次把這批工單的路線抓回來
+  const routeMap = {};
+  if (nos.length) {
+    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,seq,station").in("work_order_no", nos).order("seq");
+    (rts || []).forEach((r) => { (routeMap[r.work_order_no] = routeMap[r.work_order_no] || []).push(r); });
+  }
+
   const head = `<tr><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th><th>${t("station")}</th><th>${t("due_date")}</th><th>${t("assigner")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((a) => {
     const e = a.employees || {}; const w = woMap[a.work_order_no] || {};
-    return `<tr><td>${e.name || ""}</td><td>${e.team || ""}</td><td>${a.work_order_no}</td><td>${w.customer || ""}</td><td>${w.product_name || ""}</td><td>${a.station || "-"}</td><td>${a.due_date || "-"}</td><td>${empMap[a.assigned_by] || ""}</td>
-      <td><button class="btn small" data-del="${a.id}" style="background:#fee2e2;color:#dc2626">${t("act_delete")}</button></td></tr>`;
+    // 站別、製作日期改成可直接編輯（改了就存）
+    const opts = [`<option value=""${a.station ? "" : " selected"}>${t("any_station")}</option>`]
+      .concat((routeMap[a.work_order_no] || []).map((r) => {
+        const v = String(r.station).replace(/"/g, "&quot;");
+        return `<option value="${v}"${r.station === a.station ? " selected" : ""}>${r.seq} ${r.station}</option>`;
+      }));
+    // 指派時該工單還沒匯入路線的話，至少把原本的站別留住，不要被下拉洗掉
+    if (a.station && !(routeMap[a.work_order_no] || []).some((r) => r.station === a.station)) {
+      const v = String(a.station).replace(/"/g, "&quot;");
+      opts.push(`<option value="${v}" selected>${a.station}</option>`);
+    }
+    return `<tr data-aid="${a.id}"><td>${e.name || ""}</td><td>${e.team || ""}</td><td>${a.work_order_no}</td>
+      <td>${w.customer || ""}</td><td>${w.product_name || ""}</td>
+      <td><select class="cell" data-af="station" style="min-width:130px">${opts.join("")}</select></td>
+      <td><input type="date" class="cell" data-af="due_date" value="${a.due_date || ""}" style="min-width:140px"></td>
+      <td>${empMap[a.assigned_by] || ""}</td>
+      <td><button class="btn small danger" data-del="${a.id}">${t("act_delete")}</button></td></tr>`;
   }).join("");
   $("#assignTable").innerHTML = `<table>${head}${body}</table>`;
+
+  // 改站別 / 改日期 → 立即儲存
+  $$("#assignTable [data-af]").forEach((inp) => {
+    inp.onchange = async () => {
+      const id = inp.closest("tr").dataset.aid;
+      const f = inp.dataset.af;
+      const { error } = await sb.from("assignments").update({ [f]: inp.value || null }).eq("id", id);
+      if (error) return toast(t("err") + ": " + error.message, "err");
+      toast(t("saved"), "ok");
+    };
+  });
   $$("#assignTable button[data-del]").forEach((b) => {
     b.onclick = async () => {
       const { error } = await sb.from("assignments").delete().eq("id", b.dataset.del);
@@ -510,35 +698,58 @@ Admin.loadProgress = async function () {
 
 Admin.showProgressDetail = async function (wo) {
   const [woRes, routeRes, jobRes] = await Promise.all([
-    sb.from("work_orders").select("customer,product_name,spec").eq("work_order_no", wo).maybeSingle(),
+    sb.from("work_orders").select("*").eq("work_order_no", wo).maybeSingle(),
     sb.from("work_order_routes").select("seq,station,station_type").eq("work_order_no", wo).order("seq"),
-    sb.from("jobs").select("station,end_at,work_minutes,employees(name)").eq("work_order_no", wo).eq("status", "done"),
+    sb.from("jobs").select("station,qty,status,end_at,work_minutes,employees(name)").eq("work_order_no", wo).eq("status", "done"),
   ]);
   if (!woRes.data) { $("#pgInfo").innerHTML = ""; $("#pgTable").innerHTML = `<p class="muted">${t("wo_not_found")}</p>`; return; }
   const routes = routeRes.data || [];
-  const doneMap = {};
-  (jobRes.data || []).forEach((j) => { if (!doneMap[j.station]) doneMap[j.station] = j; });
+  const jobs = jobRes.data || [];
 
-  // 完成度只算廠內工作站（委外不計入分母）
+  // 分批報工同一站會有多筆，要「加總顆數」而不是有紀錄就算完成
+  const total = Number(woRes.data.qty);
+  const hasTotal = isFinite(total) && total > 0;
+  const byStation = {};
+  jobs.forEach((j) => {
+    if (!byStation[j.station]) byStation[j.station] = { qty: 0, last: null, names: new Set() };
+    const s = byStation[j.station];
+    s.qty += Number(j.qty) || 0;
+    if (!s.last || new Date(j.end_at) > new Date(s.last.end_at)) s.last = j;
+    if (j.employees && j.employees.name) s.names.add(j.employees.name);
+  });
+  const stDone = (st) => {
+    const s = byStation[st];
+    if (!s) return "none";
+    if (!hasTotal) return "done";                 // 沒總數可比，維持舊behaviour
+    return s.qty >= total ? "done" : "partial";
+  };
+
   const inhouse = routes.filter((r) => r.station_type === "工作站");
-  const doneCount = inhouse.filter((r) => doneMap[r.station]).length;
+  const doneCount = inhouse.filter((r) => stDone(r.station) === "done").length;
   const pct = inhouse.length ? Math.round(doneCount / inhouse.length * 100) : 0;
   $("#pgInfo").innerHTML = `<div class="wo-info">
     <span class="k">${t("customer")}</span><span>${woRes.data.customer || ""}</span>
     <span class="k">${t("product")}</span><span>${woRes.data.product_name || ""}</span>
+    ${hasTotal ? `<span class="k">${t("wo_qty")}</span><span><strong>${total}</strong></span>` : ""}
     <span class="k">${t("progress_pct")}</span><span><strong>${doneCount}/${inhouse.length}（${pct}%）</strong></span>
   </div>`;
 
-  const head = `<tr><th>#</th><th>${t("station")}</th><th>${t("status")}</th><th>${t("maker_done")}</th><th>${t("done_time")}</th></tr>`;
+  const head = `<tr><th>#</th><th>${t("station")}</th><th>${t("status")}</th><th class="r">${t("st_qty_col")}</th>
+    <th>${t("maker_done")}</th><th>${t("done_time")}</th></tr>`;
   const body = routes.map((r) => {
     const outsourced = r.station_type !== "工作站";
-    const d = doneMap[r.station];
-    let badge, cls;
-    if (outsourced) { badge = `<span class="badge" style="background:#94a3b8">${t("outsourced")}</span>`; cls = ""; }
-    else if (d) { badge = `<span class="badge go">${t("progress_done")}</span>`; cls = ""; }
+    const s = byStation[r.station];
+    const state = stDone(r.station);
+    let badge, cls = "";
+    if (outsourced) badge = `<span class="badge mute">${t("outsourced")}</span>`;
+    else if (state === "done") badge = `<span class="badge go">${t("progress_done")}</span>`;
+    else if (state === "partial") { badge = `<span class="badge warn">${t("progress_partial")}</span>`; cls = "warn-row"; }
     else { badge = `<span class="badge mute">${t("progress_undone")}</span>`; cls = "warn-row"; }
+    const qtyCell = s ? (hasTotal ? `${s.qty} / ${total}` : String(s.qty)) : (hasTotal ? `0 / ${total}` : "");
+    const who = s ? [...s.names].join("、") : "";
+    const last = s && s.last && s.last.end_at ? fmtDate(s.last.end_at) + " " + fmtTime(s.last.end_at) : "";
     return `<tr class="${cls}"><td>${r.seq}</td><td>${r.station}</td><td>${badge}</td>
-      <td>${d ? (d.employees || {}).name || "" : ""}</td><td>${d && d.end_at ? fmtDate(d.end_at) + " " + fmtTime(d.end_at) : ""}</td></tr>`;
+      <td class="r">${qtyCell}</td><td>${who}</td><td>${last}</td></tr>`;
   }).join("");
   $("#pgTable").innerHTML = `<table>${head}${body}</table>`;
 };
@@ -549,7 +760,8 @@ Admin.loadEmployees = async function () {
   if (error) return toast(t("err") + ": " + error.message, "err");
   const rows = data || [];
   const head = `<tr><th>${t("emp_account")}</th><th>${t("name")}</th><th>${t("team")}</th>
-    <th>${t("role")}</th><th>${t("lang")}</th><th>${t("active")}</th><th>${t("actions")}</th></tr>`;
+    <th>${t("role")}</th><th>${t("lang")}</th><th class="r">${t("home_target")}</th>
+    <th>${t("active")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((e) => `
     <tr data-id="${e.id}">
       <td>${e.account}</td>
@@ -563,6 +775,9 @@ Admin.loadEmployees = async function () {
         <option value="zh" ${e.lang === "zh" ? "selected" : ""}>中文</option>
         <option value="vi" ${e.lang === "vi" ? "selected" : ""}>Tiếng Việt</option>
       </select></td>
+      <td class="r"><input type="number" class="cell r" style="max-width:80px" min="0" step="1"
+        data-target="${e.id}" value="${Home.targets.get(e.id) != null ? Home.targets.get(e.id) : ""}"
+        title="${t("home_target_tip")}"></td>
       <td style="text-align:center"><input type="checkbox" data-f="active" ${e.active ? "checked" : ""}></td>
       <td><button class="btn small ghost" data-pw="${e.id}">${t("reset_pw")}</button></td>
     </tr>`).join("");
@@ -576,6 +791,14 @@ Admin.loadEmployees = async function () {
       const { error } = await sb.rpc("admin_reset_password", { p_employee_id: b.dataset.pw, p_new_password: pw });
       if (error) return toast(t("err") + ": " + error.message, "err");
       toast(t("pw_reset_ok"), "ok");
+    };
+  });
+
+  // 本月目標（原型：存 localStorage，不寫資料庫）
+  $$("#empTable input[data-target]").forEach((inp) => {
+    inp.onchange = () => {
+      Home.targets.set(inp.dataset.target, inp.value);
+      toast(t("saved") + "（" + t("proto") + "）", "ok");
     };
   });
 
@@ -638,7 +861,7 @@ Admin.doErpImport = function () {
   const reader = new FileReader();
   reader.onload = async (e) => {
     try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
       const norm = (s) => String(s).replace(/\s/g, "").trim();
@@ -657,8 +880,13 @@ Admin.doErpImport = function () {
         spec: find("產品規格"), cust: find("客戶名稱"),
         mat1: find("材質", "本體"), mat2: find("第二添加"), surf: find("表面處理"),
         seq: find("代碼"), stName: find("站名"), stType: find("站別"), drawing: find("圖檔檔名", "T"),
+        qty: find("生產數量D"), due: find("預計完成日期D"), std: find("製程時間T"),
       };
       const get = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : "");
+      // ERP 的製程時間T 有 94% 是 0，那是「沒填」不是「0 分鐘」，一律當 null
+      const getNum = (row, i) => { const n = Number(get(row, i)); return (isFinite(n) && n > 0) ? n : null; };
+      // 欄位還沒建的話就不要送，否則整批匯入會被 PostgREST 擋掉
+      const withQty = await App.checkWoQty();
 
       const woMap = new Map();
       const seen = new Set();
@@ -670,19 +898,27 @@ Admin.doErpImport = function () {
         const wo = get(row, I.wo);
         if (!wo) continue;
         if (!woMap.has(wo)) {
-          woMap.set(wo, {
+          const rec = {
             work_order_no: wo, sku: get(row, I.sku) || null, product_name: get(row, I.name) || null,
             spec: get(row, I.spec) || null, customer: get(row, I.cust) || null,
             material_body: get(row, I.mat1) || null, material_second: get(row, I.mat2) || null,
             surface_treatment: get(row, I.surf) || null,
-          });
+          };
+          if (withQty) {
+            const q = Number(get(row, I.qty));
+            rec.qty = (isFinite(q) && q > 0) ? q : null;
+            rec.due_date = excelDate(I.due >= 0 ? row[I.due] : null);   // 預計完成日 = 客戶交期
+          }
+          woMap.set(wo, rec);
         }
         const seq = get(row, I.seq), st = get(row, I.stName);
         if (seq && st) {
           const key = wo + "|" + seq;
           if (!seen.has(key)) {
             seen.add(key);
-            routes.push({ work_order_no: wo, seq, station: st, station_type: get(row, I.stType) || null, drawing_file: get(row, I.drawing) || null });
+            const rt = { work_order_no: wo, seq, station: st, station_type: get(row, I.stType) || null, drawing_file: get(row, I.drawing) || null };
+            if (withQty) rt.std_minutes = getNum(row, I.std);   // 製程時間T = 該站預估工時
+            routes.push(rt);
           }
           stations.add(st);
         }

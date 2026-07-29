@@ -3,7 +3,7 @@
 // ============================================================
 window.App = window.App || {};
 App.ME = null;          // 目前登入員工 { id, account, name, team, role, lang }
-App.activeView = "report";
+App.activeView = "home";
 
 // ---- 小工具 ----
 window.$ = (sel, root) => (root || document).querySelector(sel);
@@ -24,6 +24,40 @@ window.toast = function (msg, type) {
   box.className = "toast show " + (type || "");
   clearTimeout(window.__toastT);
   window.__toastT = setTimeout(() => (box.className = "toast"), 3000);
+};
+
+// work_orders.qty（工單總數量）目前可能還沒建欄位，探測一次並記住。
+// 有欄位 → 顯示「已完成 2 / 5，還差 3」；沒有 → 只顯示「已完成 2 顆」。
+App.hasWoQty = null;
+App.checkWoQty = async function () {
+  if (App.hasWoQty !== null) return App.hasWoQty;
+  const { error } = await sb.from("work_orders").select("qty").limit(1);
+  App.hasWoQty = !error;
+  return App.hasWoQty;
+};
+
+// 某工單某站「已完成顆數」＝該站所有 done 報工的 qty 加總（分批報工會有多筆）
+App.stationDone = function (jobs, station) {
+  return (jobs || [])
+    .filter((j) => j.station === station && j.status === "done")
+    .reduce((a, j) => a + (Number(j.qty) || 0), 0);
+};
+
+// Excel 的日期欄可能是 Date 物件、序號(45000)或字串(2026/07/30)，統一轉成 YYYY-MM-DD
+window.excelDate = function (v) {
+  if (v == null || v === "") return null;
+  let d = null;
+  if (v instanceof Date) d = v;
+  else if (typeof v === "number" && isFinite(v) && v > 20000 && v < 80000) {
+    d = new Date(Math.round((v - 25569) * 86400000));       // Excel 1900 日期系統
+  } else {
+    const s = String(v).trim().replace(/\//g, "-");
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  if (!d || isNaN(d.getTime())) return null;
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
 window.fmtDate = (d) => {
@@ -99,17 +133,26 @@ App.loadProfile = async function () {
 
   $("#whoami").textContent = `${t("welcome")}, ${data.name}` + (data.team ? ` (${data.team})` : "");
   $("#btnLogout").classList.remove("hide");
-  // 主管才看得到「管理」分頁
-  $('#nav button[data-view="admin"]').classList.toggle("hide", data.role !== "主管");
+  $("#btnMenu").classList.remove("hide");
+  // 「工具/下載」只有主管用得到
+  const tools = $("#btnTools");
+  tools.classList.toggle("hide", data.role !== "主管");
+  tools.onclick = () => { Admin.tab = "download"; App.go("admin"); };
+
+  Nav.render();
+  Nav.bindDrawer();
+  Notify.start();
 
   $("#loginView").classList.add("hide");
   $("#appView").classList.remove("hide");
-  App.go("report");
+  App.go("home");
 };
 
 App.logout = async function () {
   await sb.auth.signOut();
   App.ME = null;
+  if (window.Notify) Notify.stop();
+  document.body.classList.remove("nav-open");
   App.showLogin();
 };
 
@@ -117,8 +160,8 @@ App.logout = async function () {
 App.go = function (view) {
   App.activeView = view;
   if (view === "report") Report._remind = true;   // 進報工頁要提醒未完成
-  $$("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   $$(".view").forEach((v) => v.classList.toggle("hide", v.id !== "view-" + view));
+  if (window.Nav) Nav.setActive();
   window.renderActiveView();
 };
 
@@ -128,7 +171,13 @@ window.renderActiveView = function () {
   if (App.activeView !== "admin" && window.Admin && Admin.dashTimer) {
     clearInterval(Admin.dashTimer); Admin.dashTimer = null;
   }
-  if (App.activeView === "report") Report.render();
+  // 離開看板頁就停掉計時器
+  if (App.activeView !== "home" && window.Home && Home.timer) {
+    clearInterval(Home.timer); Home.timer = null;
+  }
+  if (App.activeView === "home") Home.render();
+  else if (App.activeView === "report") Report.render();
+  else if (App.activeView === "cal") Cal.render();
   else if (App.activeView === "incident") Incident.render();
   else if (App.activeView === "todo") Todo.render();
   else if (App.activeView === "score") Score.renderMine();
