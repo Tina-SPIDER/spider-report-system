@@ -93,12 +93,19 @@ Admin.loadLoad = async function () {
   const asg = (assigns || []).filter((a) => !a.due_date || (a.due_date >= sKey && a.due_date <= eKey));
   const nos = [...new Set(asg.map((a) => a.work_order_no))];
 
+  // 進行中的報工要全抓，不能只看「有被指派的工單」——
+  // 員工自己輸入工單號開工的很常見，只看指派會漏掉
+  const { data: runJobs } = await sb.from("jobs")
+    .select("work_order_no,station,machine,start_at,status,employee_id").in("status", ["running", "paused"]);
+  const running = runJobs || [];
+  const allNos = [...new Set(nos.concat(running.map((j) => j.work_order_no)))];
+
   let wos = [], routes = [], jobs = [];
-  if (nos.length) {
+  if (allNos.length) {
     const r = await Promise.all([
-      sb.from("work_orders").select("work_order_no,sku,qty,customer").in("work_order_no", nos.slice(0, 500)),
-      sb.from("work_order_routes").select("work_order_no,station,station_type,std_minutes").in("work_order_no", nos.slice(0, 500)),
-      sb.from("jobs").select("work_order_no,station,qty,work_minutes,status,employee_id").in("work_order_no", nos.slice(0, 500)),
+      sb.from("work_orders").select("work_order_no,sku,qty,customer,product_name,due_date").in("work_order_no", allNos.slice(0, 500)),
+      sb.from("work_order_routes").select("work_order_no,station,station_type,std_minutes").in("work_order_no", allNos.slice(0, 500)),
+      sb.from("jobs").select("work_order_no,station,qty,work_minutes,status,employee_id").eq("status", "done").in("work_order_no", allNos.slice(0, 500)),
     ]);
     wos = r[0].data || []; routes = r[1].data || []; jobs = r[2].data || [];
   }
@@ -110,18 +117,17 @@ Admin.loadLoad = async function () {
   const bySkuSt = {}, bySt = {}, doneQty = {}, runByEmp = {};
   jobs.forEach((j) => {
     const w = woMap[j.work_order_no] || {};
-    if (j.status === "done") {
-      doneQty[j.work_order_no + "|" + j.station] = (doneQty[j.work_order_no + "|" + j.station] || 0) + (Number(j.qty) || 0);
-      const mins = Number(j.work_minutes);
-      if (isFinite(mins) && mins > 0) {
-        const per = mins / Math.max(1, Number(j.qty) || 1);
-        if (per > 0 && per <= 480) {
-          if (w.sku) (bySkuSt[w.sku + "|" + j.station] = bySkuSt[w.sku + "|" + j.station] || []).push(per);
-          (bySt[j.station] = bySt[j.station] || []).push(per);
-        }
+    doneQty[j.work_order_no + "|" + j.station] = (doneQty[j.work_order_no + "|" + j.station] || 0) + (Number(j.qty) || 0);
+    const mins = Number(j.work_minutes);
+    if (isFinite(mins) && mins > 0) {
+      const per = mins / Math.max(1, Number(j.qty) || 1);
+      if (per > 0 && per <= 480) {
+        if (w.sku) (bySkuSt[w.sku + "|" + j.station] = bySkuSt[w.sku + "|" + j.station] || []).push(per);
+        (bySt[j.station] = bySt[j.station] || []).push(per);
       }
-    } else { runByEmp[j.employee_id] = (runByEmp[j.employee_id] || 0) + 1; }
+    }
   });
+  running.forEach((j) => { (runByEmp[j.employee_id] = runByEmp[j.employee_id] || []).push(j); });
   const med = (arr) => {
     if (!arr || !arr.length) return null;
     const a = [...arr].sort((x, y) => x - y); const m = Math.floor(a.length / 2);
@@ -148,19 +154,39 @@ Admin.loadLoad = async function () {
       ? [a.station]
       : (routeMap[a.work_order_no] || []).filter((r) => r.station_type !== "加工戶").map((r) => r.station);
     let mins = 0, open = 0;
+    const items = [];
     targets.forEach((st) => {
       const done = doneQty[a.work_order_no + "|" + st] || 0;
       const left = hasTotal ? Math.max(0, total - done) : (done > 0 ? 0 : 1);
-      if (left > 0) { open++; mins += estPer(a.work_order_no, st) * left; }
+      if (left > 0) {
+        open++;
+        const m = estPer(a.work_order_no, st) * left;
+        mins += m;
+        items.push({ wo: a.work_order_no, customer: w.customer, product_name: w.product_name,
+          station: st, left, total: hasTotal ? total : null, mins: Math.round(m),
+          due: w.due_date,        // 客戶交期
+          plan: a.due_date });    // 主管排的製作日期
+      }
     });
-    return { mins, open };
+    return { mins, open, items };
   };
 
   const rows = staff.map((emp) => {
     const mine = asg.filter((a) => a.employee_id === emp.id);
     let mins = 0, cnt = 0;
-    mine.forEach((a) => { const l = loadOf(a); if (l.open > 0) { mins += l.mins; cnt++; } });
-    return { ...emp, mins: Math.round(mins), cnt, running: runByEmp[emp.id] || 0 };
+    const items = [];
+    mine.forEach((a) => {
+      const l = loadOf(a);
+      if (l.open > 0) { mins += l.mins; cnt++; items.push(...l.items); }
+    });
+    // 依客戶交期排序（急的在前），沒交期的排最後；同交期再看工時多寡
+    items.sort((x, y) =>
+      String(x.due || "9999").localeCompare(String(y.due || "9999")) || (y.mins - x.mins));
+    const runs = (runByEmp[emp.id] || []).map((j) => {
+      const w = woMap[j.work_order_no] || {};
+      return { ...j, customer: w.customer, product_name: w.product_name, due: w.due_date };
+    });
+    return { ...emp, mins: Math.round(mins), cnt, items, runs };
   }).sort((a, b) => b.mins - a.mins);
 
   // 沒派給任何人的（有交期落在期間內）
@@ -188,15 +214,64 @@ Admin.loadLoad = async function () {
       ${w2 ? `<div class="ld-over" style="width:${w2}%"></div>` : ""}<div class="ld-line"></div></div>`;
     const pctCell = `<strong style="color:${col}">${pct.toFixed(0)}%</strong>` +
       (over > 0 ? `<br><small style="color:var(--err)">${t("ld_over", { n: over, h: (over / 60).toFixed(1) })}</small>` : "");
+    // 數字可以點開，直接看是哪幾張單——只看 125% 沒辦法決定要移走什麼
+    const runBtn = r.runs.length
+      ? `<button class="ld-link" data-emp="${r.id}" data-kind="run">${r.runs.length}</button>` : "";
+    const openBtn = r.cnt
+      ? `<button class="ld-link" data-emp="${r.id}" data-kind="open">${r.cnt}</button>` : "";
     return `<tr><td>${r.name}</td><td>${r.team || ""}</td>
-      <td class="r">${r.running || ""}</td><td class="r">${r.cnt || ""}</td>
+      <td class="r">${runBtn}</td><td class="r">${openBtn}</td>
       <td class="r">${r.mins || ""}</td><td class="r">${avail}</td>
-      <td class="r" style="white-space:nowrap">${pctCell}</td><td>${bar}</td></tr>`;
+      <td class="r" style="white-space:nowrap">${pctCell}</td><td>${bar}</td></tr>
+      <tr class="ld-detail hide" data-for="${r.id}"><td colspan="8"><div class="ld-box"></div></td></tr>`;
   }).join("");
   const unRow = unMins > 0
     ? `<tr class="warn-row"><td colspan="4"><strong>${t("ld_unassigned")}</strong></td>
        <td class="r"><strong>${Math.round(unMins)}</strong></td><td colspan="3">${t("ld_unassigned_hint", { n: unNos.length })}</td></tr>` : "";
   $("#ldTable").innerHTML = `<table>${head}${body}${unRow}</table>`;
+
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // 交期：過了今天標紅、7 天內標琥珀，一眼看出哪張最急
+  const today = fmtDate(new Date());
+  const soon = fmtDate(new Date(Date.now() + 7 * 86400000));
+  const dueCell = (d) => {
+    if (!d) return `<span class="muted">—</span>`;
+    if (d < today) return `<span class="badge err">${d}</span>`;
+    if (d <= soon) return `<span class="badge warn">${d}</span>`;
+    return d;
+  };
+  $$("#ldTable .ld-link").forEach((b) => {
+    b.onclick = () => {
+      const r = rows.find((x) => x.id === b.dataset.emp);
+      const tr = document.querySelector(`#ldTable tr.ld-detail[data-for="${b.dataset.emp}"]`);
+      const box = tr.querySelector(".ld-box");
+      const same = tr.dataset.kind === b.dataset.kind && !tr.classList.contains("hide");
+      if (same) { tr.classList.add("hide"); return; }        // 再點一次收起來
+      tr.dataset.kind = b.dataset.kind;
+      if (b.dataset.kind === "run") {
+        box.innerHTML = `<div class="ld-t">${t("status_running")}</div>` + (r.runs.length
+          ? `<table><tr><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th>
+             <th>${t("station")}</th><th>${t("machine")}</th><th>${t("ld_due")}</th><th>${t("status")}</th></tr>` +
+            r.runs.map((j) => `<tr><td>${esc(j.work_order_no)}</td><td>${esc(j.customer)}</td>
+              <td>${esc(j.product_name)}</td><td>${esc(j.station)}</td><td>${esc(j.machine)}</td>
+              <td>${dueCell(j.due)}</td>
+              <td>${j.status === "paused" ? `<span class="badge warn">${t("status_paused")}</span>` : `<span class="badge go">${t("status_running")}</span>`}</td></tr>`).join("") +
+            `</table>` : `<p class="muted">${t("no_data")}</p>`);
+      } else {
+        box.innerHTML = `<div class="ld-t">${t("ld_open")}</div>` + (r.items.length
+          ? `<table><tr><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th>
+             <th>${t("station")}</th><th class="r">${t("ld_left")}</th><th class="r">${t("ld_need")}</th>
+             <th>${t("ld_due")}</th><th>${t("due_date")}</th></tr>` +
+            r.items.map((it) => `<tr><td>${esc(it.wo)}</td><td>${esc(it.customer)}</td>
+              <td>${esc(it.product_name)}</td><td>${esc(it.station)}</td>
+              <td class="r">${it.left}${it.total ? ` / ${it.total}` : ""}</td>
+              <td class="r">${it.mins}</td>
+              <td>${dueCell(it.due)}</td><td>${it.plan || ""}</td></tr>`).join("") +
+            `</table>` : `<p class="muted">${t("no_data")}</p>`);
+      }
+      tr.classList.remove("hide");
+    };
+  });
 };
 
 // ---------- 出貨確認 ----------
