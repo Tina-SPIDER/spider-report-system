@@ -8,6 +8,23 @@ window.Cal = { mode: "week", cursor: null, byDay: {}, sel: null, srcMine: true, 
 
 const calEsc = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const calAttr = (s) => calEsc(s).replace(/"/g, "&quot;");
+
+// 品名後面多半掛著尺寸規格，例如
+//   U7特殊管式內模(成型放電3凹x60L)(D17x36L+>16.7L+管7.3L=60L)
+// 月曆放不下，取第一個括號前的主體就好 → U7特殊管式內模。
+// 有些品名本身以括號開頭（(LSZH)D20充實緊包外模…），所以要跳過開頭那組。
+const calShortName = (s) => {
+  const str = String(s == null ? "" : s).trim();
+  if (!str) return "";
+  let from = 0;
+  if (str[0] === "(" || str[0] === "（") {
+    const close = str.search(/[)）]/);
+    if (close > 0) from = close + 1;
+  }
+  const i = str.slice(from).search(/[(（]/);
+  return (i > 0 ? str.slice(0, from + i) : str).trim();
+};
 const calKey = (d) => {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -154,14 +171,21 @@ Cal.paint = function () {
 // 只有主管能拖曳改期；員工看得到但拖不動
 Cal.canMove = function () { return App.ME && App.ME.role === "主管"; };
 
+// 品名中位數 16 字、最長 46 字，塞不進月曆格子，所以分檢視處理：
+//   日檢視 → 完整顯示（空間夠）
+//   週檢視 → 第二行顯示、單行截斷
+//   月檢視 → 只留滑鼠提示（格子太小）
 Cal.chip = function (it, day) {
   const cls = it.type === "mine" ? "mine" : "due";
   const who = it.customer || "";
+  const name = calShortName(it.product_name);
   const qty = it.total && it.total > 1 ? ` ×${it.total}` : "";
   const drag = Cal.canMove()
-    ? ` draggable="true" data-wo="${calEsc(it.work_order_no)}" data-type="${it.type}" data-from="${day}"` : "";
-  return `<span class="cal-chip ${cls}${it.finished ? " done" : ""}${Cal.canMove() ? " movable" : ""}${it.manual ? " manual" : ""}"${drag}
-    title="${it.manual ? t("cal_manual_tip") : ""}">${it.type === "mine" ? "📌" : "📅"} ${calEsc(who)} ${calEsc(it.work_order_no)}${qty}${it.manual ? " ✎" : ""}</span>`;
+    ? ` draggable="true" data-wo="${calAttr(it.work_order_no)}" data-type="${it.type}" data-from="${day}"` : "";
+  const tip = [who, it.work_order_no, it.product_name, it.manual ? t("cal_manual_tip") : ""].filter(Boolean).join(" · ");
+  return `<span class="cal-chip ${cls}${it.finished ? " done" : ""}${Cal.canMove() ? " movable" : ""}${it.manual ? " manual" : ""}"${drag} title="${calAttr(tip)}">
+    <span class="chip-l1">${it.type === "mine" ? "📌" : "📅"} ${calEsc(who)} ${calEsc(it.work_order_no)}${qty}${it.manual ? " ✎" : ""}</span>
+    ${name ? `<span class="chip-l2">${calEsc(name)}</span>` : ""}</span>`;
 };
 
 // 真正寫入新日期
@@ -186,8 +210,11 @@ Cal.paintMonth = function (todayKey, start) {
     const d = calAdd(start, i);
     const key = calKey(d);
     const items = Cal.byDay[key] || [];
-    const show = items.slice(0, 2).map((it) =>
-      `<span class="cal-mini ${it.type}">${calEsc(it.customer || it.work_order_no)}</span>`).join("");
+    // 月曆格子只放得下客戶名，品名放進 title 讓滑鼠停留看得到
+    const show = items.slice(0, 2).map((it) => {
+      const tip = [it.customer, it.work_order_no, it.product_name].filter(Boolean).join(" · ");
+      return `<span class="cal-mini ${it.type}" title="${calAttr(tip)}">${calEsc(it.customer || it.work_order_no)}</span>`;
+    }).join("");
     const more = items.length > 2 ? `<span class="cal-mini more">+${items.length - 2}</span>` : "";
     cells.push(`<button class="cal-cell${d.getMonth() !== m ? " other" : ""}${key === todayKey ? " today" : ""}${Cal.sel === key ? " sel" : ""}" data-d="${key}" data-drop="${key}">
       <span class="cal-d">${d.getDate()}${items.length ? `<span class="cal-n">${items.length}</span>` : ""}</span>
