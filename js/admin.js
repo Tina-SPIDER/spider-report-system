@@ -796,6 +796,7 @@ Admin.initAssign = async function () {
   // 輸入工單號後，站別下拉只列該工單的製程站
   $("#asWo").onchange = Admin.loadAssignStations;
   $("#btnAssign").onclick = Admin.doAssign;
+  $("#asFilter").onchange = Admin.loadAssignList;
   Admin.loadAssignList();
 };
 
@@ -803,6 +804,14 @@ Admin.initAssign = async function () {
 // 工時有兩個來源，優先用實際的：
 //   ① 同貨編同站過去報工的「實際工時中位數（每顆）」— 剔除單顆超過 8 小時的忘記結束紀錄
 //   ② ERP 的製程時間T（work_order_routes.std_minutes）— 實際只有約 4% 有值
+Admin.assignBadge = function (p) {
+  const qty = p.total ? ` <small class="muted">${p.done}/${p.total}</small>`
+    : (p.done ? ` <small class="muted">${p.done}</small>` : "");
+  if (p.state === "done") return `<span class="badge go">${t("as_st_done")}</span>${qty}`;
+  if (p.state === "doing") return `<span class="badge warn">${t("as_st_doing")}</span>${qty}`;
+  return `<span class="badge mute">${t("as_st_none")}</span>${qty}`;
+};
+
 Admin.loadAssignStations = async function () {
   const wo = $("#asWo").value.trim();
   const sel = $("#asStation");
@@ -895,14 +904,14 @@ Admin.doAssign = async function () {
 
 Admin.loadAssignList = async function () {
   const { data, error } = await sb.from("assignments")
-    .select("id,work_order_no,station,due_date,assigned_by,created_at,employees(name,team)").order("created_at", { ascending: false });
+    .select("id,work_order_no,employee_id,station,due_date,assigned_by,created_at,employees(name,team)").order("created_at", { ascending: false });
   if (error) return toast(t("err") + ": " + error.message, "err");
-  const rows = data || [];
-  if (rows.length === 0) { $("#assignTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  let rows = data || [];
+  if (rows.length === 0) { $("#assignCount").textContent = ""; $("#assignTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
   // 客戶/品名 + 指派人名稱
   const nos = [...new Set(rows.map((r) => r.work_order_no))];
   const woMap = {};
-  if (nos.length) { const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name").in("work_order_no", nos); (wos || []).forEach((w) => (woMap[w.work_order_no] = w)); }
+  if (nos.length) { const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name,qty").in("work_order_no", nos); (wos || []).forEach((w) => (woMap[w.work_order_no] = w)); }
   const ids = [...new Set(rows.map((r) => r.assigned_by).filter(Boolean))];
   const empMap = {};
   if (ids.length) { const { data: es } = await sb.from("employees").select("id,name").in("id", ids); (es || []).forEach((e) => (empMap[e.id] = e.name)); }
@@ -914,7 +923,45 @@ Admin.loadAssignList = async function () {
     (rts || []).forEach((r) => { (routeMap[r.work_order_no] = routeMap[r.work_order_no] || []).push(r); });
   }
 
-  const head = `<tr><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th><th>${t("station")}</th><th>${t("due_date")}</th><th>${t("assigner")}</th><th>${t("actions")}</th></tr>`;
+  // 指派做到哪了：用報工紀錄自動判斷，員工不用另外按「完成」。
+  //   已完成 = 該站做滿工單數量   進行中 = 有人在做或已完成部分顆數   未開始 = 完全沒紀錄
+  // 不刪除已完成的指派，只是預設不顯示——刪掉就查不到「當初派給誰」。
+  const doneQty = {}, running = {};
+  if (nos.length) {
+    const { data: js } = await sb.from("jobs")
+      .select("work_order_no,station,qty,status,employee_id").in("work_order_no", nos);
+    (js || []).forEach((j) => {
+      const k = j.employee_id + "|" + j.work_order_no + "|" + (j.station || "");
+      if (j.status === "done") doneQty[k] = (doneQty[k] || 0) + (Number(j.qty) || 0);
+      else running[k] = true;
+    });
+  }
+  const stateOf = (a) => {
+    const w = woMap[a.work_order_no] || {};
+    const total = Number(w.qty);
+    const hasTotal = isFinite(total) && total > 0;
+    // 沒指定站別時，把該員工在這張工單所有站的紀錄一起看
+    const keys = a.station
+      ? [a.employee_id + "|" + a.work_order_no + "|" + a.station]
+      : Object.keys(doneQty).concat(Object.keys(running))
+          .filter((k) => k.startsWith(a.employee_id + "|" + a.work_order_no + "|"));
+    const done = keys.reduce((s, k) => s + (doneQty[k] || 0), 0);
+    const isRun = keys.some((k) => running[k]);
+    let state = "none";
+    if (hasTotal && done >= total && total > 0) state = "done";
+    else if (isRun || done > 0) state = "doing";
+    else if (!hasTotal && done > 0) state = "done";
+    return { state, done, total: hasTotal ? total : null };
+  };
+  rows = rows.map((a) => ({ ...a, _p: stateOf(a) }));
+
+  const mode = ($("#asFilter") && $("#asFilter").value) || "open";
+  if (mode === "open") rows = rows.filter((a) => a._p.state !== "done");
+  else if (mode === "done") rows = rows.filter((a) => a._p.state === "done");
+  $("#assignCount").textContent = t("jobs_total", { n: rows.length });
+  if (!rows.length) { $("#assignTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+
+  const head = `<tr><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th><th>${t("station")}</th><th>${t("due_date")}</th><th>${t("status")}</th><th>${t("assigner")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((a) => {
     const e = a.employees || {}; const w = woMap[a.work_order_no] || {};
     // 站別、製作日期改成可直接編輯（改了就存）
@@ -932,6 +979,7 @@ Admin.loadAssignList = async function () {
       <td>${w.customer || ""}</td><td>${w.product_name || ""}</td>
       <td><select class="cell" data-af="station" style="min-width:130px">${opts.join("")}</select></td>
       <td><input type="date" class="cell" data-af="due_date" value="${a.due_date || ""}" style="min-width:140px"></td>
+      <td style="white-space:nowrap">${Admin.assignBadge(a._p)}</td>
       <td>${empMap[a.assigned_by] || ""}</td>
       <td><button class="btn small danger" data-del="${a.id}">${t("act_delete")}</button></td></tr>`;
   }).join("");
