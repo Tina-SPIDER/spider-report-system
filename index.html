@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=68">
+  <link rel="stylesheet" href="css/style.css?v=69">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=68" class="header-logo" alt="logo">
+    <img src="logo.png?v=69" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=68" class="login-logo" alt="logo">
+        <img src="logo.png?v=69" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -593,18 +593,35 @@
     <div class="modal-card">
       <h3 data-i18n="finish_title">結束報工</h3>
       <input type="hidden" id="finishJobId">
-      <label data-i18n="work_content">作業內容</label>
-      <input id="finWork" type="text" data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
-      <label><span data-i18n="qty">生產數量</span> <span class="req">*</span></label>
-      <input id="finQty" type="number" min="0" required inputmode="numeric">
-      <label data-i18n="scrap">報廢數量</label>
-      <input id="finScrap" type="number" min="0">
-      <label data-i18n="note">備註</label>
-      <input id="finNote" type="text">
-      <div style="height:16px"></div>
-      <div class="row">
-        <button id="btnFinCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
-        <button id="btnFinConfirm" class="btn primary grow" data-i18n="confirm">確認</button>
+
+      <!-- 必填的放最前面，選填的收進「其他」，減少現場填錯 -->
+      <div id="finForm">
+        <label><span data-i18n="qty">生產數量</span> <span class="req">*</span></label>
+        <input id="finQty" type="number" min="0" required inputmode="numeric" style="font-size:22px;padding:14px">
+        <label data-i18n="scrap">報廢數量</label>
+        <input id="finScrap" type="number" min="0" inputmode="numeric">
+        <details style="margin-top:10px">
+          <summary class="muted" style="cursor:pointer;font-size:14px" data-i18n="fin_more">其他（選填）</summary>
+          <label data-i18n="work_content">作業內容</label>
+          <input id="finWork" type="text" data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
+          <label data-i18n="note">備註</label>
+          <input id="finNote" type="text">
+        </details>
+        <div style="height:16px"></div>
+        <div class="row">
+          <button id="btnFinCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+          <button id="btnFinConfirm" class="btn primary grow" data-i18n="confirm">確認</button>
+        </div>
+      </div>
+
+      <!-- 送出成功後：直接問要不要再開一單 -->
+      <div id="finDone" class="hide">
+        <p style="font-size:19px;font-weight:700;margin:6px 0 4px">✅ <span data-i18n="fin_ok">已完成報工</span></p>
+        <p class="muted" id="finDoneMsg" style="font-size:14px;margin:0 0 14px"></p>
+        <div class="row">
+          <button id="btnFinClose" class="btn ghost grow" data-i18n="fin_close">關閉</button>
+          <button id="btnFinAgain" class="btn go grow" data-i18n="fin_again">再開一單</button>
+        </div>
       </div>
     </div>
   </div>
@@ -647,18 +664,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=68"></script>
-  <script src="js/i18n.js?v=68"></script>
-  <script src="js/auth.js?v=68"></script>
-  <script src="js/report.js?v=68"></script>
-  <script src="js/incident.js?v=68"></script>
-  <script src="js/todo.js?v=68"></script>
-  <script src="js/home.js?v=68"></script>
-  <script src="js/score.js?v=68"></script>
-  <script src="js/admin.js?v=68"></script>
-  <script src="js/scoreplan.js?v=68"></script>
-  <script src="js/calendar.js?v=68"></script>
-  <script src="js/nav.js?v=68"></script>
-  <script src="js/notify.js?v=68"></script>
+  <script src="js/config.js?v=69"></script>
+  <script src="js/i18n.js?v=69"></script>
+  <script src="js/auth.js?v=69"></script>
+  <script src="js/report.js?v=69"></script>
+  <script src="js/incident.js?v=69"></script>
+  <script src="js/todo.js?v=69"></script>
+  <script src="js/home.js?v=69"></script>
+  <script src="js/score.js?v=69"></script>
+  <script src="js/admin.js?v=69"></script>
+  <script src="js/scoreplan.js?v=69"></script>
+  <script src="js/calendar.js?v=69"></script>
+  <script src="js/nav.js?v=69"></script>
+  <script src="js/notify.js?v=69"></script>
 </body>
 </html>

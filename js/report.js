@@ -8,6 +8,18 @@ window.Report = {
   timer: null,
 };
 
+// 記住每個人上次用的機台（存瀏覽器，換裝置就重新學）
+Report.lastMachine = {
+  KEY: "last_machine_v1",
+  all() { try { return JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { return {}; } },
+  get() { return App.ME ? this.all()[App.ME.id] || null : null; },
+  set(code) {
+    if (!App.ME || !code) return;
+    const a = this.all(); a[App.ME.id] = code;
+    localStorage.setItem(this.KEY, JSON.stringify(a));
+  },
+};
+
 Report.ensureMachines = async function () {
   if (Report.machines.length === 0) {
     const { data } = await sb.from("machines").select("*").eq("active", true).order("code");
@@ -84,6 +96,16 @@ Report.showReminder = function () {
 Report.bind = function () {
   $("#btnQueryWo").onclick = Report.queryWo;
   $("#inWoNo").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); Report.queryWo(); } };
+  // 打完工單號自動查，不用再按一次「查詢」。
+  // 等 600ms 沒再按鍵才查，避免每打一個字就打一次資料庫。
+  $("#inWoNo").oninput = () => {
+    clearTimeout(Report._autoQ);
+    const v = $("#inWoNo").value.trim();
+    if (v.length < 4) return;
+    Report._autoQ = setTimeout(() => {
+      if ($("#inWoNo").value.trim() === v && (!Report.current || Report.current.work_order_no !== v)) Report.queryWo();
+    }, 600);
+  };
   $("#btnStart").onclick = Report.start;
 };
 
@@ -150,6 +172,9 @@ Report.queryWo = async function () {
   mopts.push(`<option value="__new__">${t("new_machine")}</option>`);
   const msel = $("#selMachine");
   msel.innerHTML = mopts.join("");
+  // 52 台機台在手機上很難找，幫他選上次用的那台（還在清單裡才選）
+  const lastM = Report.lastMachine.get();
+  if (lastM && Report.machines.some((m) => m.code === lastM)) msel.value = lastM;
   msel.onchange = () => {
     const isNew = msel.value === "__new__";
     $("#inNewMachine").classList.toggle("hide", !isNew);
@@ -329,6 +354,7 @@ Report.start = async function () {
     p_machine: machine || null,
   });
   if (error) return toast(friendlyErr(error), "err");
+  Report.lastMachine.set(machine);     // 下次自動帶這台
   Report._flashId = data && data.id;   // 新卡片高亮用
   toast(t("ok"), "ok");
   Report.stations = []; Report.machines = [];   // 下次重載（含剛新增的站/機台）
@@ -578,9 +604,19 @@ Report.openFinish = function (id) {
   $("#finQty").value = "";
   $("#finScrap").value = "";
   $("#finNote").value = "";
+  $("#finForm").classList.remove("hide");
+  $("#finDone").classList.add("hide");
   $("#finishModal").classList.remove("hide");
+  $("#finQty").focus();                       // 一打開就對準必填的數量
   $("#btnFinCancel").onclick = () => $("#finishModal").classList.add("hide");
   $("#btnFinConfirm").onclick = Report.confirmFinish;
+  $("#btnFinClose").onclick = () => $("#finishModal").classList.add("hide");
+  $("#btnFinAgain").onclick = () => {
+    $("#finishModal").classList.add("hide");
+    App.go("report");
+    // 清空並對準工單號，直接打下一張
+    setTimeout(() => { const i = $("#inWoNo"); if (i) { i.value = ""; i.focus(); i.scrollIntoView({ behavior: "smooth", block: "center" }); } }, 60);
+  };
 };
 
 Report.confirmFinish = async function () {
@@ -600,9 +636,11 @@ Report.confirmFinish = async function () {
     p_job_id: id, p_qty: qty, p_scrap: scrap, p_note: note, p_work_content: workContent,
   });
   if (error) return toast(friendlyErr(error), "err");
-  $("#finishModal").classList.add("hide");
   const st = data ? data.status : "";
-  toast(`${t("finish")} ✓ ${st ? "(" + st + ")" : ""}`, "ok");
+  // 不直接關視窗，改成問要不要再開一單——現場常常一張接一張
+  $("#finForm").classList.add("hide");
+  $("#finDoneMsg").textContent = t("fin_qty_done", { n: qty }) + (st ? `　（${st}）` : "");
+  $("#finDone").classList.remove("hide");
   await Report.loadRunning();
   Report.updateStationProgress();      // 剛結束的顆數要立刻反映在進度上
   if (window.Home) Home.refreshIfActive();

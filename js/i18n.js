@@ -133,7 +133,8 @@ window.I18N = {
     as_est_sum: "全部站別合計約 {n} 分（{q} 顆）",
     as_est_note: "工時優先採用「同貨編同站過去報工的實際中位數(每顆)」，沒有紀錄才用 ERP 製程時間；兩者都沒有顯示「—」。ERP 的製程時間實際只有約 4% 有填。",    act_report: "報工", admin_assign: "工單指派", assign: "指派",
     select_employee: "選擇員工", assigned_list: "已指派清單", any_station: "（不指定站別）", due_date: "製作日期", assigner: "指派人",
-    finish_title: "結束報工",
+    finish_title: "結束報工", fin_more: "其他（選填）", fin_ok: "已完成報工",
+    fin_close: "關閉", fin_again: "再開一單", fin_qty_done: "本次完成 {n} 顆",
 
     // 績效
     admin_load: "人員負荷",
@@ -324,7 +325,8 @@ window.I18N = {
     as_est_sum: "Tổng các công đoạn khoảng {n} phút ({q} cái)",
     as_est_note: "Ưu tiên dùng trung vị giờ thực tế mỗi cái của cùng mã hàng & công đoạn; không có mới dùng giờ ERP; cả hai đều không có thì hiển thị «—».",    act_report: "Báo công", admin_assign: "Giao lệnh SX", assign: "Giao",
     select_employee: "Chọn nhân viên", assigned_list: "Danh sách đã giao", any_station: "(Không chỉ định)", due_date: "Ngày làm", assigner: "Người giao",
-    finish_title: "Kết thúc báo công",
+    finish_title: "Kết thúc báo công", fin_more: "Khác (không bắt buộc)", fin_ok: "Đã kết thúc báo công",
+    fin_close: "Đóng", fin_again: "Báo đơn khác", fin_qty_done: "Lần này hoàn thành {n} cái",
 
     admin_load: "Tải công việc",
     ld_r_week: "Tuần này", ld_r_today: "Hôm nay", ld_r_next: "Tuần sau", ld_r_custom: "Tự chọn",

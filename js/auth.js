@@ -145,7 +145,8 @@ App.loadProfile = async function () {
 
   $("#loginView").classList.add("hide");
   $("#appView").classList.remove("hide");
-  App.go("home");
+  // 員工一天最常做的就是報工，直接落在報工頁；主管才需要先看看板
+  App.go(data.role === "主管" ? "home" : "report");
 };
 
 App.logout = async function () {

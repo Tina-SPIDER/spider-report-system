@@ -4,3 +4,4 @@ node_modules/
 *.log
 .claude/
 demo-load.html
+demo-pause.html
