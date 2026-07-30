@@ -3,5 +3,7 @@ Thumbs.db
 node_modules/
 *.log
 .claude/
-demo-load.html
-demo-pause.html
+# 客戶資料檔絕不進版控（此 repo 為公開）
+*.xls
+*.xlsx
+*.csv
