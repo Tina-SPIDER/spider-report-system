@@ -392,8 +392,28 @@ ScorePlan.paintEditor = function () {
     <th class="r">${t("sp_actual")}</th><th class="r">${t("sp_samples")}</th>
     <th class="r">${t("sp_std")}</th><th class="r">${t("sp_suggest")}</th><th class="r">${t("sp_ratio")}</th>
     <th class="r">${t("sp_st_score")}</th></tr>`;
-  const body = c.stations.map((st, i) => {
+  // 依代碼一道一列展開（010、020、030…照標準製程順序）。
+  // 同站名的後續道次不重複給輸入框——比例綁站名共用，
+  // 重複輸入會讓人以為可以分開設，其實存不進去也算不出來。
+  const rows = [];
+  c.stations.forEach((st, i) => {
+    const seqs = st._seqs ? [...st._seqs].sort() : [st.seq];
+    seqs.forEach((sq, k) => rows.push({ st, i, seq: sq, first: k === 0, firstSeq: seqs[0] }));
+  });
+  rows.sort((a, b) => String(a.seq).localeCompare(String(b.seq)));
+
+  const body = rows.map((row) => {
+    const st = row.st, i = row.i;
     const out = st.station_type === "加工戶";
+    if (!row.first) {
+      // 重複道次：列出來保持製程順序完整，比例指回第一道
+      return `<tr style="opacity:.6">
+        <td>${spEsc(row.seq)}</td><td>${spEsc(st.station)}</td>
+        <td>${out ? t("outsourced") : t("sp_inhouse")}</td>
+        <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+        <td class="r"><span class="muted" title="${t("sp_multi_tip")}">${t("sp_same_as", { c: row.firstSeq })}</span></td>
+        <td class="r"><span class="muted">—</span></td></tr>`;
+    }
     const cell = out
       ? `<span class="muted">—</span>`
       : `<input type="number" class="cell r" style="max-width:90px" min="0" max="100" step="0.1"
@@ -401,11 +421,8 @@ ScorePlan.paintEditor = function () {
     // 樣本 <3 筆的實際工時參考性低，標黃提醒
     const nCell = out ? "—" : (st.samples
       ? `<span class="badge ${st.samples >= 3 ? "go" : "warn"}">${st.samples}</span>` : `<span class="muted">0</span>`);
-    // 同站名出現多次時，代碼欄列出全部道次（050·070·090），
-    // 讓人看得出標準製程順序一道都沒少——比例仍然只設一次、各道共用
-    const codes = st._seqs ? [...st._seqs].sort().join("·") : st.seq;
     return `<tr${out ? ' style="opacity:.55"' : ""}>
-      <td style="white-space:nowrap"${st.cnt > 1 ? ` title="${t("sp_multi_tip")}"` : ""}>${spEsc(codes)}</td>
+      <td>${spEsc(row.seq)}</td>
       <td>${spEsc(st.station)}</td>
       <td>${out ? t("outsourced") : t("sp_inhouse")}</td>
       <td class="r">${out ? "—" : (st.actual != null ? st.actual : (st.est ? `<span class="badge warn">${t("sp_est")}</span>` : "—"))}</td>

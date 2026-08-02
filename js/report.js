@@ -76,7 +76,8 @@ Report.showReminder = function () {
   (Report.stations || []).forEach((s) => (stMap[s.code] = s));
   $("#remindList").innerHTML = list.map((j) => {
     const st = stMap[j.station];
-    let stName = st ? stationName(st) : j.station;
+    const seqs = (Report.routeSeq || {})[j.work_order_no + "|" + j.station];
+    let stName = (seqs && seqs.length ? [...seqs].sort().join("·") + " " : "") + (st ? stationName(st) : j.station);
     if (j.machine) stName += ` · 🛠 ${j.machine}`;
     const paused = j.status === "paused";
     const _wo = (Report.woMap || {})[j.work_order_no] || {};
@@ -481,8 +482,14 @@ Report.loadRunning = async function () {
   if (nos.length) {
     const { data: wos } = await sb.from("work_orders").select("work_order_no,customer,product_name").in("work_order_no", nos);
     (wos || []).forEach((w) => (Report.woMap[w.work_order_no] = w));
-    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,station,drawing_path").in("work_order_no", nos);
-    (rts || []).forEach((r) => { if (r.drawing_path) Report.routeDraw[r.work_order_no + "|" + r.station] = r.drawing_path; });
+    const { data: rts } = await sb.from("work_order_routes").select("work_order_no,seq,station,drawing_path").in("work_order_no", nos);
+    Report.routeSeq = {};
+    (rts || []).forEach((r) => {
+      if (r.drawing_path) Report.routeDraw[r.work_order_no + "|" + r.station] = r.drawing_path;
+      // 站名前要顯示的序號；同站名多道就全列（050·070·090）
+      const k = r.work_order_no + "|" + r.station;
+      (Report.routeSeq[k] = Report.routeSeq[k] || []).push(r.seq);
+    });
   }
   Report.renderRunning();
 };
@@ -497,7 +504,9 @@ Report.renderRunning = function () {
   Report.stations.forEach((s) => (stMap[s.code] = s));
   box.innerHTML = Report.jobs.map((j) => {
     const st = stMap[j.station];
-    const stBase = st ? stationName(st) : j.station;
+    const seqs = (Report.routeSeq || {})[j.work_order_no + "|" + j.station];
+    const seqTag = seqs && seqs.length ? [...seqs].sort().join("·") + " " : "";
+    const stBase = seqTag + (st ? stationName(st) : j.station);
     let stName = stBase;
     if (j.machine) stName += ` · 🛠 ${j.machine}`;
     const paused = j.status === "paused";
