@@ -18,10 +18,18 @@ report-system/
 ├─ css/style.css
 ├─ js/ config.js i18n.js auth.js report.js score.js admin.js
 └─ supabase/
-   ├─ schema.sql           建表 + 權限 + 計分函式
+   ├─ schema.sql           建表 + 權限 + 計分函式（v1 基線）
    ├─ seed.sql             工站/範例資料 + 建第一位主管步驟
+   ├─ migrations/          結構變更（見下方「資料庫治理」）
+   ├─ GOVERNANCE.md        schema drift 說明 + migrations 用法
+   ├─ VERIFY.md            如何用 pg_dump 驗證線上 schema / RLS
    └─ functions/create-employee/index.ts   建帳號 Edge Function
 ```
+
+> ⚠️ **重要：`schema.sql` 已不代表線上現況。** 線上 v44 DB 有多項手動改動未進版控
+> （新表 machines / work_order_routes / assignments / incidents / todos、多個新欄位與 RPC、
+> drawings storage bucket），前端已依賴這些物件。請先讀 `supabase/GOVERNANCE.md`，
+> 依 `supabase/VERIFY.md` 校準後再據以建庫，切勿只跑 `schema.sql`。
 
 ---
 
