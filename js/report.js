@@ -656,9 +656,9 @@ Report.action = async function (id, act) {
 // 暫停照樣成功，只是這次沒有原因可統計，不會擋住現場。
 // code 是存進資料庫的值（固定中文，方便統計）；k 是顯示用的翻譯 key
 Report.PAUSE_REASONS = [
-  { code: "待料", k: "pr_wait" }, { code: "換線/換模", k: "pr_setup" },
-  { code: "設備故障", k: "pr_break" }, { code: "品質調機", k: "pr_tune" },
-  { code: "計畫保養", k: "pr_maint" }, { code: "其他", k: "pr_other" },
+  { code: "午休", k: "pr_lunch" }, { code: "抽菸", k: "pr_smoke" },
+  { code: "品質調機", k: "pr_tune" }, { code: "設備故障", k: "pr_break" },
+  { code: "其他", k: "pr_other" },
 ];
 
 Report.openPause = function (id) {
