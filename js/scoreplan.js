@@ -108,9 +108,16 @@ ScorePlan.loadFromDb = async function () {
     (rts || []).forEach((r) => {
       const s = bySku[woOf[r.work_order_no]];
       if (!s) return;
-      if (!s.stations.some((x) => x.seq === r.seq && x.station === r.station)) {
+      // 依「站名」合併：像 拋光 可能在製程裡出現 3 次（050/070/090），
+      // 但比例是綁站名的，只能設一次——重複列出還會讓存檔撞唯一鍵。
+      // 合併時工時累加（做 3 次拋光就是 3 段工時），並記次數提示使用者。
+      const exist = s.stations.find((x) => x.station === r.station);
+      if (exist) {
+        if (!exist._seqs.has(r.seq)) { exist._seqs.add(r.seq); exist.cnt++; exist.std += Number(r.std_minutes) || 0; }
+      } else {
         s.stations.push({ seq: r.seq, station: r.station,
-          station_type: r.station_type || "工作站", std: Number(r.std_minutes) || 0 });
+          station_type: r.station_type || "工作站", std: Number(r.std_minutes) || 0,
+          cnt: 1, _seqs: new Set([r.seq]) });
       }
     });
   }
@@ -175,9 +182,12 @@ ScorePlan.readFile = function (e) {
         if (!isFinite(std) || std <= 0) std = Number(row[I.t2]);
         if (!isFinite(std)) std = 0;
         if (!bySku[sku]) bySku[sku] = { sku, product_name: String(row[I.name] || "").trim(), stations: [] };
-        // 同貨編同站只取一次（不同工單會重複出現）
-        if (!bySku[sku].stations.some((x) => x.seq === seq && x.station === st)) {
+        // 依站名合併（理由同 loadFromDb：比例綁站名，只能設一次）
+        const ex = bySku[sku].stations.find((x) => x.station === st);
+        if (ex) { if (!ex._seqs.has(seq)) { ex._seqs.add(seq); ex.cnt++; ex.std += std; } }
+        else {
           bySku[sku].stations.push({
+            cnt: 1, _seqs: new Set([seq]),
             seq, station: st,
             station_type: String(row[I.stType] || "").trim() || "工作站",
             std,
@@ -373,8 +383,10 @@ ScorePlan.paintEditor = function () {
     // 樣本 <3 筆的實際工時參考性低，標黃提醒
     const nCell = out ? "—" : (st.samples
       ? `<span class="badge ${st.samples >= 3 ? "go" : "warn"}">${st.samples}</span>` : `<span class="muted">0</span>`);
+    // 同站名在製程出現多次（例如拋光×3）只設一次比例，標出次數
+    const cntTag = st.cnt > 1 ? ` <span class="badge mute" title="${t("sp_multi_tip")}">×${st.cnt}</span>` : "";
     return `<tr${out ? ' style="opacity:.55"' : ""}>
-      <td>${spEsc(st.seq)}</td><td>${spEsc(st.station)}</td>
+      <td>${spEsc(st.seq)}</td><td>${spEsc(st.station)}${cntTag}</td>
       <td>${out ? t("outsourced") : t("sp_inhouse")}</td>
       <td class="r">${out ? "—" : (st.actual != null ? st.actual : (st.est ? `<span class="badge warn">${t("sp_est")}</span>` : "—"))}</td>
       <td class="r">${nCell}</td>
@@ -439,7 +451,7 @@ ScorePlan.save = async function (status) {
     .filter((s) => s.station_type !== "加工戶")
     .map((s) => ({ station: s.station, ratio: Number(s.ratio) || 0 }));
   const { error } = await sb.rpc("save_sku_ratios", { p_sku: c.sku, p_ratios: ratios, p_confirm: confirm_ });
-  if (error) return toast(friendlyErr(error), "err");
+  if (error) return toast(rpcErr(error), "err");
   toast(confirm_ ? t("sp_confirmed_ok") : t("saved"), "ok");
   await ScorePlan.db.loadFor([c.sku]);
   ScorePlan.open(c.sku);

@@ -290,7 +290,7 @@ Admin.initGrade = function () {
 
 Admin.recomputeSku = async function () {
   const { data, error } = await sb.rpc("recompute_sku_pending");
-  if (error) return toast(friendlyErr(error), "err");
+  if (error) return toast(rpcErr(error), "err");
   toast(t("gd_recomputed", { n: data || 0 }), "ok");
 };
 
@@ -358,7 +358,7 @@ Admin.loadGrade = async function () {
       const v = tr.querySelector(`input[data-gd]`).value.trim();
       if (v === "" || !isFinite(Number(v)) || Number(v) < 0) return toast(t("gd_need_score"), "err");
       const { error } = await sb.rpc("set_sku_score", { p_sku: sku, p_score: Number(v) });
-      if (error) return toast(friendlyErr(error), "err");
+      if (error) return toast(rpcErr(error), "err");
       const n = (bySku[sku] || []).length;
       toast(t("gd_saved", { sku, n }), "ok");
       Admin.loadGrade();
@@ -368,7 +368,7 @@ Admin.loadGrade = async function () {
     b.onclick = async () => {
       if (!confirm(t("gd_clear_ask"))) return;
       const { error } = await sb.rpc("set_sku_score", { p_sku: b.dataset.clr, p_score: null });
-      if (error) return toast(friendlyErr(error), "err");
+      if (error) return toast(rpcErr(error), "err");
       toast(t("saved_del"), "ok");
       Admin.loadGrade();
     };

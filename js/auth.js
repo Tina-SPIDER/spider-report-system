@@ -18,6 +18,12 @@ window.friendlyErr = function (e) {
   return t("err_generic");
 };
 
+// RPC 裡用 raise exception 丟出來的訊息（P0001）本身就是給人看的中文，
+// 直接顯示；其他錯誤才走 friendlyErr 的白話轉換
+window.rpcErr = function (e) {
+  return (e && e.code === "P0001" && e.message) ? e.message : friendlyErr(e);
+};
+
 window.toast = function (msg, type) {
   const box = $("#toast");
   box.textContent = msg;
