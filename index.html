@@ -1,17 +1,17 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=83">
+  <link rel="stylesheet" href="css/style.css?v=84">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=83" class="header-logo" alt="logo">
+    <img src="logo.png?v=84" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=83" class="login-logo" alt="logo">
+        <img src="logo.png?v=84" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -352,7 +352,7 @@
 
         <!-- 工單指派 -->
         <div id="pane-assign" class="admin-pane hide">
-          <div class="card">
+          <div class="card" id="asFormCard">
             <h3 data-i18n="admin_assign">工單指派</h3>
             <div class="row">
               <select id="asEmp" class="grow"></select>
@@ -452,6 +452,7 @@
               <input id="neTeam" class="grow" data-i18n-ph="team" placeholder="班組">
               <select id="neRole" class="grow">
                 <option value="員工">員工 / NV</option>
+                <option value="組長">組長 / TT</option>
                 <option value="主管">主管 / QL</option>
               </select>
               <select id="neLang" class="grow">
@@ -708,18 +709,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=83"></script>
-  <script src="js/i18n.js?v=83"></script>
-  <script src="js/auth.js?v=83"></script>
-  <script src="js/report.js?v=83"></script>
-  <script src="js/incident.js?v=83"></script>
-  <script src="js/todo.js?v=83"></script>
-  <script src="js/home.js?v=83"></script>
-  <script src="js/score.js?v=83"></script>
-  <script src="js/admin.js?v=83"></script>
-  <script src="js/scoreplan.js?v=83"></script>
-  <script src="js/calendar.js?v=83"></script>
-  <script src="js/nav.js?v=83"></script>
-  <script src="js/notify.js?v=83"></script>
+  <script src="js/config.js?v=84"></script>
+  <script src="js/i18n.js?v=84"></script>
+  <script src="js/auth.js?v=84"></script>
+  <script src="js/report.js?v=84"></script>
+  <script src="js/incident.js?v=84"></script>
+  <script src="js/todo.js?v=84"></script>
+  <script src="js/home.js?v=84"></script>
+  <script src="js/score.js?v=84"></script>
+  <script src="js/admin.js?v=84"></script>
+  <script src="js/scoreplan.js?v=84"></script>
+  <script src="js/calendar.js?v=84"></script>
+  <script src="js/nav.js?v=84"></script>
+  <script src="js/notify.js?v=84"></script>
 </body>
 </html>

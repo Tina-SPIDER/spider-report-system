@@ -444,13 +444,15 @@ ScorePlan.paintEditor = function () {
 
   $("#spHint").innerHTML = ok ? "" : `<p style="color:var(--err);font-size:14px;margin:6px 0">${t("sp_must_100")}</p>`;
 
-  // 按鈕列：未鎖定 = 草稿/確認；已鎖定 = 申請修改
+  // 按鈕列：未鎖定 = 草稿/確認；已鎖定 = 申請修改。
+  // 「確認並鎖定」只有主管能按——組長只能存草稿，等主管來鎖。
+  const isMgr = App.ME && App.ME.role === "主管";
   $("#spBtns").innerHTML = locked
     ? `<button class="btn ghost" id="btnSpUseSuggest" disabled>${t("sp_use_suggest")}</button>
        <button class="btn primary" id="btnSpRequest">${t("sp_request")}</button>`
     : `<button class="btn ghost" id="btnSpUseSuggest">${t("sp_use_suggest")}</button>
        <button class="btn" id="btnSpDraft">${t("sp_save_draft")}</button>
-       <button class="btn go" id="btnSpConfirm"${ok ? "" : " disabled"}>${t("sp_confirm")}</button>`;
+       ${isMgr ? `<button class="btn go" id="btnSpConfirm"${ok ? "" : " disabled"}>${t("sp_confirm")}</button>` : ""}`;
 
   $$("#spTable input[data-ri]").forEach((inp) => {
     inp.onchange = () => {

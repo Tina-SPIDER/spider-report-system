@@ -222,7 +222,7 @@ window.I18N = {
     wo_file_hint: "選擇 .xlsx / .csv 檔，欄位順序：工單號、貨編、品名、規格、客戶（有標題列會自動跳過）",
     wo_paste_title: "方式二：手打或從 Excel 複製貼上",
     wo_file_preview: "讀到 {n} 筆，將匯入…",
-    manager: "主管", employee: "員工",
+    manager: "主管", employee: "員工", leader: "組長",
     add_emp: "新增員工", emp_account: "帳號", emp_password: "密碼",
     add_rule: "新增分數列",
 
@@ -441,7 +441,7 @@ window.I18N = {
     wo_file_hint: "Chọn tệp .xlsx / .csv, thứ tự cột: số lệnh, mã hàng, tên SP, quy cách, khách hàng (tự bỏ qua dòng tiêu đề)",
     wo_paste_title: "Cách 2: Gõ tay hoặc dán từ Excel",
     wo_file_preview: "Đọc được {n} dòng, đang nhập…",
-    manager: "Quản lý", employee: "Nhân viên",
+    manager: "Quản lý", employee: "Nhân viên", leader: "Tổ trưởng",
     add_emp: "Thêm nhân viên", emp_account: "Tài khoản", emp_password: "Mật khẩu",
     add_rule: "Thêm dòng điểm",
 

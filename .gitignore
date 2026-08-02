@@ -10,5 +10,4 @@ node_modules/
 demo-*.html
 
 # 本機匯出的線上 schema dump（可能含機敏資訊，僅供比對，勿提交）
-supabase/_live_public.sql
-supabase/_live_storage.sql
+supabase/_live_*.sql

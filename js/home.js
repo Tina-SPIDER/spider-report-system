@@ -147,7 +147,7 @@ Home.renderLoadCard = async function () {
   if (Home.hlView === "me") emps = [{ id: App.ME.id, name: App.ME.name }];
   else {
     const { data } = await sb.from("employees")
-      .select("id,name").eq("active", true).eq("team", App.ME.team).eq("role", "員工").order("name");
+      .select("id,name").eq("active", true).eq("team", App.ME.team).in("role", ["員工", "組長"]).order("name");
     emps = data || [];
   }
   const r = await Home.calcLoad(emps.map((x) => x.id));

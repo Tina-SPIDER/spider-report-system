@@ -3,11 +3,26 @@
 // ============================================================
 window.Admin = { tab: "dashboard" };
 
+// 各角色能進的後台分頁：主管全部；組長多了計分比例（只能存草稿）；
+// 員工也能「看」指派、紀錄、異常、四個看板——但只能看，操作按鈕不會出現。
+Admin.TABS = {
+  "主管": null,   // null＝全部
+  "組長": ["dashboard", "machine", "progress", "load", "assign", "jobs", "incident", "scoreplan"],
+  "員工": ["dashboard", "machine", "progress", "load", "assign", "jobs", "incident"],
+};
+Admin.canTab = function (tab) {
+  if (!App.ME || !(App.ME.role in Admin.TABS)) return false;
+  const allow = Admin.TABS[App.ME.role];
+  return !allow || allow.includes(tab);
+};
+
 Admin.render = function () {
-  if (!App.ME || App.ME.role !== "主管") return;
+  if (!App.ME || !(App.ME.role in Admin.TABS)) return;
+  if (!Admin.canTab(Admin.tab)) Admin.tab = "dashboard";
   // 離開看板就停掉自動更新
   if (Admin.dashTimer) { clearInterval(Admin.dashTimer); Admin.dashTimer = null; }
   $$("#adminTabs button").forEach((b) => {
+    b.classList.toggle("hide", !Admin.canTab(b.dataset.atab));
     b.onclick = () => { Admin.tab = b.dataset.atab; Admin.render(); };
     b.classList.toggle("active", b.dataset.atab === Admin.tab);
   });
@@ -86,7 +101,7 @@ Admin.loadLoad = async function () {
   const sKey = fmtDate(s), eKey = fmtDate(e);
 
   const [{ data: emps }, { data: assigns }] = await Promise.all([
-    sb.from("employees").select("id,name,team").eq("active", true).eq("role", "員工").order("name"),
+    sb.from("employees").select("id,name,team").eq("active", true).in("role", ["員工", "組長"]).order("name"),
     sb.from("assignments").select("employee_id,work_order_no,station,due_date"),
   ]);
   const staff = emps || [];
@@ -722,7 +737,7 @@ Admin.loadDashboard = async function () {
   const sel = "id,employee_id,status,work_minutes,qty,scrap_qty,start_at,paused_minutes,paused_at,work_order_no,station,machine,employees(name,team)";
 
   const [empRes, doneRes, actRes] = await Promise.all([
-    sb.from("employees").select("id,name,team").eq("active", true).eq("role", "員工").not("team", "is", null),
+    sb.from("employees").select("id,name,team").eq("active", true).in("role", ["員工", "組長"]).not("team", "is", null),
     sb.from("jobs").select(sel).eq("status", "done").gte("start_at", start.toISOString()).lt("start_at", end.toISOString()),
     sb.from("jobs").select(sel).in("status", ["running", "paused"]),
   ]);
@@ -888,7 +903,7 @@ Admin.loadJobs = async function () {
     <th>${t("jb_start")}</th><th>${t("jb_end")}</th>
     <th class="r">${t("jb_paused")}</th><th class="r">${t("work_min")}</th>
     <th class="r">${t("qty")}</th><th class="r">${t("scrap")}</th>
-    <th>${t("note")}</th><th>${t("status")}</th><th>${t("actions")}</th></tr>`;
+    <th>${t("note")}</th><th>${t("status")}</th>${Admin.canEditJobs() ? `<th>${t("actions")}</th>` : ""}</tr>`;
   const body = rows.map((j) => {
     const emp = j.employees || {};
     const wm = j.work_minutes != null ? Math.round(j.work_minutes) : "";
@@ -902,11 +917,11 @@ Admin.loadJobs = async function () {
       <td class="r">${pm ? pm : ""}</td><td class="r">${wm}</td>
       <td class="r">${j.qty != null ? j.qty : ""}</td><td class="r">${j.scrap_qty != null ? j.scrap_qty : ""}</td>
       <td>${j.note || ""}</td><td>${stMap[j.status] || j.status}</td>
-      <td style="white-space:nowrap">
+      ${Admin.canEditJobs() ? `<td style="white-space:nowrap">
         <button class="btn small ghost" data-act="edit" data-id="${j.id}">${t("act_edit")}</button>
         ${force}
         <button class="btn small danger" data-act="del" data-id="${j.id}">${t("act_delete")}</button>
-      </td></tr>`;
+      </td>` : ""}</tr>`;
   }).join("");
   $("#jobsTable").innerHTML = `<table>${head}${body}</table>`;
 
@@ -938,7 +953,13 @@ Admin.renderJobsPager = function (total) {
   });
 };
 
+// 報工紀錄的編輯／強制結束／刪除只有主管能做；組長、員工進來只能看
+Admin.canEditJobs = function () { return !!(App.ME && App.ME.role === "主管"); };
+// 指派、異常處理：主管和組長能操作；員工只能看
+Admin.canOperate = function () { return !!(App.ME && ["主管", "組長"].includes(App.ME.role)); };
+
 Admin.jobAction = async function (act, id) {
+  if (!Admin.canEditJobs()) return;
   const j = (Admin._jobs || []).find((x) => x.id === id);
   if (!j) return;
   if (act === "edit") {
@@ -1116,18 +1137,19 @@ Admin.loadIncidents = async function () {
   if (error) return toast(t("err") + ": " + error.message, "err");
   const rows = data || [];
   if (rows.length === 0) { $("#incTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  const op = Admin.canOperate();   // 員工只能看，不出現操作欄
   const head = `<tr><th>${t("date")}</th><th>${t("name")}</th><th>${t("inc_category")}</th>
-    <th>${t("inc_content")}</th><th>${t("status")}</th><th>${t("actions")}</th></tr>`;
+    <th>${t("inc_content")}</th><th>${t("status")}</th>${op ? `<th>${t("actions")}</th>` : ""}</tr>`;
   const body = rows.map((r) => {
     const e = r.employees || {};
     const done = r.status === "已處理";
     return `<tr><td>${fmtDate(r.created_at)}</td><td>${e.name || ""}</td><td>${esc(r.category)}</td>
       <td style="white-space:pre-wrap">${esc(r.content)}</td>
       <td>${done ? '<span class="badge go">已處理</span>' : '<span class="badge warn">待處理</span>'}</td>
-      <td style="white-space:nowrap">
+      ${op ? `<td style="white-space:nowrap">
         <button class="btn small ${done ? "ghost" : "primary"}" data-toggle="${r.id}" data-st="${done ? "待處理" : "已處理"}">${done ? "待處理" : "標記已處理"}</button>
         <button class="btn small danger" data-del="${r.id}">${t("act_delete")}</button>
-      </td></tr>`;
+      </td>` : ""}</tr>`;
   }).join("");
   $("#incTable").innerHTML = `<table>${head}${body}</table>`;
   $$("#incTable button[data-toggle]").forEach((b) => {
@@ -1148,7 +1170,10 @@ Admin.loadIncidents = async function () {
 
 // ---------- 工單指派 ----------
 Admin.initAssign = async function () {
-  const emps = await sb.from("employees").select("id,name,team").eq("active", true).eq("role", "員工").order("name");
+  // 員工只能看已指派清單，上面的「派工」表單整塊藏起來
+  const form = $("#asFormCard");
+  if (form) form.classList.toggle("hide", !Admin.canOperate());
+  const emps = await sb.from("employees").select("id,name,team").eq("active", true).in("role", ["員工", "組長"]).order("name");
   $("#asEmp").innerHTML = (emps.data || []).map((e) => `<option value="${e.id}">${e.name}${e.team ? " (" + e.team + ")" : ""}</option>`).join("");
   $("#asStation").innerHTML = `<option value="">${t("any_station")}</option>`;
   // 輸入工單號後，站別下拉只列該工單的製程站
@@ -1338,9 +1363,18 @@ Admin.loadAssignList = async function () {
   $("#assignCount").textContent = t("jobs_total", { n: rows.length });
   if (!rows.length) { $("#assignTable").innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
 
-  const head = `<tr><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th><th>${t("station")}</th><th>${t("due_date")}</th><th>${t("status")}</th><th>${t("assigner")}</th><th>${t("actions")}</th></tr>`;
+  const op = Admin.canOperate();   // 員工唯讀：站別、日期顯示文字，不給改，也沒有刪除鈕
+  const head = `<tr><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("customer")}</th><th>${t("product")}</th><th>${t("station")}</th><th>${t("due_date")}</th><th>${t("status")}</th><th>${t("assigner")}</th>${op ? `<th>${t("actions")}</th>` : ""}</tr>`;
   const body = rows.map((a) => {
     const e = a.employees || {}; const w = woMap[a.work_order_no] || {};
+    if (!op) {
+      return `<tr data-aid="${a.id}"><td>${e.name || ""}</td><td>${e.team || ""}</td><td>${a.work_order_no}</td>
+      <td>${w.customer || ""}</td><td>${w.product_name || ""}</td>
+      <td>${a.station || t("any_station")}</td>
+      <td>${a.due_date || ""}</td>
+      <td style="white-space:nowrap">${Admin.assignBadge(a._p)}</td>
+      <td>${empMap[a.assigned_by] || ""}</td></tr>`;
+    }
     // 站別、製作日期改成可直接編輯（改了就存）
     const opts = [`<option value=""${a.station ? "" : " selected"}>${t("any_station")}</option>`]
       .concat((routeMap[a.work_order_no] || []).map((r) => {
@@ -1539,6 +1573,7 @@ Admin.loadEmployees = async function () {
       <td><input class="cell" data-f="team" value="${e.team || ""}"></td>
       <td><select class="cell" data-f="role">
         <option value="員工" ${e.role === "員工" ? "selected" : ""}>${t("employee")}</option>
+        <option value="組長" ${e.role === "組長" ? "selected" : ""}>${t("leader")}</option>
         <option value="主管" ${e.role === "主管" ? "selected" : ""}>${t("manager")}</option>
       </select></td>
       <td><select class="cell" data-f="lang">

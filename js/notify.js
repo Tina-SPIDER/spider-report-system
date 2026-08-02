@@ -69,7 +69,7 @@ Notify.load = async function () {
   }
 
   // 2) 主管：待處理的異常回報
-  if (App.ME.role === "主管") {
+  if (["主管", "組長"].includes(App.ME.role)) {
     const { data: inc } = await sb.from("incidents")
       .select("id,category,content,created_at,status,employee_id")
       .eq("status", "待處理")
