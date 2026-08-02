@@ -18,6 +18,7 @@ Nav.GROUPS = [
     { view: "admin", atab: "assign", label: "admin_assign", mgr: true },
     { view: "admin", atab: "jobs", label: "admin_jobs", mgr: true },
     { view: "admin", atab: "ship", label: "admin_ship", mgr: true },
+    { view: "admin", atab: "grade", label: "admin_grade", mgr: true },
     { view: "incident", label: "nav_incident" },
     { view: "admin", atab: "incident", label: "admin_incident_review", mgr: true },
   ] },

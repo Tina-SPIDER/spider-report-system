@@ -7,3 +7,4 @@ node_modules/
 *.xls
 *.xlsx
 *.csv
+demo-*.html

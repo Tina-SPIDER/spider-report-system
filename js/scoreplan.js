@@ -22,6 +22,14 @@ ScorePlan.store = {
   write(d) { localStorage.setItem(SP_KEY, JSON.stringify(d)); },
   rule(sku) { return this.read().rules[sku] || null; },
   saveRule(rule) { const d = this.read(); d.rules[rule.sku] = rule; this.write(d); },
+  // 主管給的「訂單總分」，綁在貨編上（同貨編共用一個總分）
+  total(sku) { return (this.read().totals || {})[sku] || null; },
+  setTotal(sku, rec) {
+    const d = this.read();
+    d.totals = d.totals || {};
+    if (rec == null) delete d.totals[sku]; else d.totals[sku] = rec;
+    this.write(d);
+  },
   addRequest(req) { const d = this.read(); d.requests.unshift(req); this.write(d); },
   updRequest(id, patch) {
     const d = this.read();
@@ -247,13 +255,19 @@ ScorePlan.paintEditor = function () {
   const confirmInfo = (c.rule && c.rule.status === "已確認")
     ? `<div class="job-sub">${t("sp_confirmed_by", { who: spEsc(c.rule.confirmed_by), at: c.rule.confirmed_at })}</div>` : "";
 
+  // 主管給的訂單總分（綁貨編）。沒給就沒辦法算出各站實得分數
+  const tot = ScorePlan.store.total(c.sku);
+  const totLine = tot
+    ? `<div class="sp-total">${t("gd_total")}　<b>${tot.score}</b>　<small class="muted">${t("gd_by", { who: spEsc(tot.by), at: tot.at })}</small></div>`
+    : `<div class="sp-total none">${t("sp_no_total")}</div>`;
   $("#spEditorHead").innerHTML = `
     <div style="font-size:20px;font-weight:800">${spEsc(c.sku)}</div>
-    <div class="job-sub">${spEsc(c.product_name)}</div>${confirmInfo}`;
+    <div class="job-sub">${spEsc(c.product_name)}</div>${confirmInfo}${totLine}`;
 
   const head = `<tr><th>${t("sp_seq")}</th><th>${t("station")}</th><th>${t("sp_type")}</th>
     <th class="r">${t("sp_actual")}</th><th class="r">${t("sp_samples")}</th>
-    <th class="r">${t("sp_std")}</th><th class="r">${t("sp_suggest")}</th><th class="r">${t("sp_ratio")}</th></tr>`;
+    <th class="r">${t("sp_std")}</th><th class="r">${t("sp_suggest")}</th><th class="r">${t("sp_ratio")}</th>
+    <th class="r">${t("sp_st_score")}</th></tr>`;
   const body = c.stations.map((st, i) => {
     const out = st.station_type === "加工戶";
     const cell = out
@@ -270,12 +284,15 @@ ScorePlan.paintEditor = function () {
       <td class="r">${nCell}</td>
       <td class="r muted">${out ? "—" : (st.std || "—")}</td>
       <td class="r muted">${out ? "—" : st.suggest + "%"}</td>
-      <td class="r">${cell}</td></tr>`;
+      <td class="r">${cell}</td>
+      <td class="r">${out || !tot ? `<span class="muted">—</span>`
+        : `<strong style="color:var(--go)">${(tot.score * (Number(st.ratio) || 0) / 100).toFixed(2)}</strong>`}</td></tr>`;
   }).join("");
   const basis = (c.stations.find((s) => s.basis) || {}).basis || "even";
   const basisNote = `<p class="muted" style="font-size:13px;margin:8px 0 0">${t("sp_basis_" + basis)}</p>`;
   const totalRow = `<tr><td colspan="5" class="r"><strong>${t("total")}</strong></td>
-    <td class="r"><strong style="color:${ok ? "var(--go)" : "var(--err)"}">${total.toFixed(1)}%</strong></td></tr>`;
+    <td class="r"><strong style="color:${ok ? "var(--go)" : "var(--err)"}">${total.toFixed(1)}%</strong></td>
+    <td class="r"><strong>${tot ? (tot.score * total / 100).toFixed(2) : "—"}</strong></td></tr>`;
   $("#spTable").innerHTML = `<table>${head}${body}${totalRow}</table>${basisNote}`;
 
   $("#spHint").innerHTML = ok ? "" : `<p style="color:var(--err);font-size:14px;margin:6px 0">${t("sp_must_100")}</p>`;

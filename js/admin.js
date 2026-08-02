@@ -27,6 +27,7 @@ Admin.render = function () {
   else if (Admin.tab === "overview") Admin.loadOverview();
   else if (Admin.tab === "load") Admin.initLoad();
   else if (Admin.tab === "ship") Admin.initShip();
+  else if (Admin.tab === "grade") Admin.initGrade();
   else if (Admin.tab === "download") Admin.initDownload();
   else if (Admin.tab === "scoreplan") ScorePlan.render();
 };
@@ -270,6 +271,99 @@ Admin.loadLoad = async function () {
             `</table>` : `<p class="muted">${t("no_data")}</p>`);
       }
       tr.classList.remove("hide");
+    };
+  });
+};
+
+// ---------- 工單給分（主管）----------
+// 分數綁在「貨編」上：同貨編的工單共用一個總分，之後開新單自動沿用。
+// ⚠️ 原型：存瀏覽器 localStorage，不寫資料庫、不影響實際計分。
+Admin.initGrade = function () {
+  $("#btnGdQuery").onclick = Admin.loadGrade;
+  $("#gdFilter").onchange = Admin.loadGrade;
+  $("#gdSearch").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); Admin.loadGrade(); } };
+  $("#gdProto") || $("#gdTable").previousElementSibling;
+  Admin.loadGrade();
+};
+
+Admin.loadGrade = async function () {
+  const q = $("#gdSearch").value.trim();
+  const mode = $("#gdFilter").value || "all";
+  let sel = sb.from("work_orders")
+    .select("work_order_no,sku,product_name,material_body,material_second,surface_treatment,customer,qty,due_date");
+  if (q) {
+    const safe = q.replace(/[,()*]/g, " ").trim();
+    sel = sel.or(`work_order_no.ilike.%${safe}%,sku.ilike.%${safe}%,customer.ilike.%${safe}%,product_name.ilike.%${safe}%`);
+  }
+  const { data, error } = await sel.order("work_order_no", { ascending: false }).limit(400);
+  if (error) return toast(t("err") + ": " + error.message, "err");
+  let rows = data || [];
+
+  // 同貨編的材質不一致時要警告——材質差很多，分數綁貨編就會不準
+  const bySku = {};
+  rows.forEach((w) => { (bySku[w.sku] = bySku[w.sku] || []).push(w); });
+  const mixed = new Set();
+  Object.entries(bySku).forEach(([sku, list]) => {
+    const mats = new Set(list.map((x) => (x.material_body || "").trim()).filter(Boolean));
+    if (mats.size > 1) mixed.add(sku);
+  });
+
+  if (mode === "none") rows = rows.filter((w) => !ScorePlan.store.total(w.sku));
+  else if (mode === "has") rows = rows.filter((w) => ScorePlan.store.total(w.sku));
+  $("#gdCount").textContent = t("jobs_total", { n: rows.length });
+  Admin._gdMixed = mixed;
+
+  const box = $("#gdTable");
+  if (!rows.length) { box.innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const head = `<tr><th>${t("wo_no")}</th><th>${t("sku")}</th><th>${t("product")}</th>
+    <th>${t("gd_material")}</th><th>${t("customer")}</th><th class="r">${t("wo_qty")}</th>
+    <th class="r">${t("gd_total")}</th><th>${t("actions")}</th></tr>`;
+  const body = rows.map((w) => {
+    const rec = ScorePlan.store.total(w.sku);
+    const mat = [w.material_body, w.material_second, w.surface_treatment].filter(Boolean).join(" / ");
+    const warn = mixed.has(w.sku) ? ` <span class="badge err" title="${t("gd_mixed_tip")}">⚠ ${t("gd_mixed")}</span>` : "";
+    const info = rec ? `<div class="job-sub">${t("gd_by", { who: esc(rec.by), at: rec.at })}</div>` : "";
+    return `<tr data-sku="${esc(w.sku)}" data-wo="${esc(w.work_order_no)}">
+      <td>${esc(w.work_order_no)}</td>
+      <td>${esc(w.sku)}${warn}</td>
+      <td>${esc(w.product_name)}</td>
+      <td class="muted" style="font-size:14px">${esc(mat) || "—"}</td>
+      <td>${esc(w.customer)}</td><td class="r">${w.qty != null ? w.qty : ""}</td>
+      <td class="r"><input type="number" class="cell r" min="0" step="0.5" style="max-width:90px"
+        value="${rec ? rec.score : ""}" data-gd="${esc(w.sku)}">${info}</td>
+      <td style="white-space:nowrap">
+        <button class="btn small go" data-save="${esc(w.sku)}">${t("save")}</button>
+        ${rec ? `<button class="btn small danger" data-clr="${esc(w.sku)}">${t("act_delete")}</button>` : ""}
+      </td></tr>`;
+  }).join("");
+  box.innerHTML = `<table>${head}${body}</table>`;
+
+  $$("#gdTable button[data-save]").forEach((b) => {
+    b.onclick = () => {
+      const sku = b.dataset.save;
+      const tr = b.closest("tr");
+      const v = tr.querySelector(`input[data-gd]`).value.trim();
+      if (v === "" || !isFinite(Number(v)) || Number(v) < 0) return toast(t("gd_need_score"), "err");
+      const w = rows.find((x) => x.sku === sku) || {};
+      ScorePlan.store.setTotal(sku, {
+        score: Number(v), product_name: w.product_name || "",
+        material_body: w.material_body || "", material_second: w.material_second || "",
+        surface_treatment: w.surface_treatment || "",
+        by: App.ME.name, at: new Date().toISOString().slice(0, 16).replace("T", " "),
+        wo: tr.dataset.wo,
+      });
+      const n = (bySku[sku] || []).length;
+      toast(t("gd_saved", { sku, n }), "ok");
+      Admin.loadGrade();
+    };
+  });
+  $$("#gdTable button[data-clr]").forEach((b) => {
+    b.onclick = () => {
+      if (!confirm(t("gd_clear_ask"))) return;
+      ScorePlan.store.setTotal(b.dataset.clr, null);
+      toast(t("saved_del"), "ok");
+      Admin.loadGrade();
     };
   });
 };
