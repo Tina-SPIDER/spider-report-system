@@ -284,6 +284,11 @@ Admin.initGrade = function () {
   $("#btnGdQuery").onclick = Admin.loadGrade;
   $("#gdFilter").onchange = Admin.loadGrade;
   $("#gdSearch").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); Admin.loadGrade(); } };
+  // 打完字自動查（跟報工頁同一套：停 600ms 才查，不會每個字打一次資料庫）
+  $("#gdSearch").oninput = () => {
+    clearTimeout(Admin._gdT);
+    Admin._gdT = setTimeout(() => Admin.loadGrade(), 600);
+  };
   $("#btnGdRecompute").onclick = Admin.recomputeSku;
   Admin.loadGrade();
 };

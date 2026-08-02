@@ -311,12 +311,30 @@ ScorePlan.applySuggested = function (stations, sku) {
 };
 
 // ---------- 2) 貨編清單 ----------
+// 300 多個貨編用捲的找不到，打字立即過濾（純前端，不打資料庫）
 ScorePlan.renderSkuList = function () {
   const box = $("#spSkuList");
-  if (!ScorePlan.skus.length) { box.innerHTML = `<p class="muted">${t("sp_no_file")}</p>`; return; }
+  const inp = $("#spSearch");
+  if (inp && !inp._bound) {
+    inp._bound = true;
+    inp.oninput = () => ScorePlan.renderSkuList();
+  }
+  if (!ScorePlan.skus.length) { box.innerHTML = `<p class="muted">${t("sp_no_file")}</p>`; if ($("#spCount")) $("#spCount").textContent = ""; return; }
+
+  const q = (inp ? inp.value : "").trim().toLowerCase();
+  const list = !q ? ScorePlan.skus
+    : ScorePlan.skus.filter((s) =>
+        s.sku.toLowerCase().includes(q) || (s.product_name || "").toLowerCase().includes(q));
+  if ($("#spCount")) $("#spCount").textContent = t("jobs_total", { n: list.length });
+  if (!list.length) { box.innerHTML = `<p class="muted">${t("no_data")}</p>`; return; }
+  return ScorePlan.paintSkuTable(list);
+};
+
+ScorePlan.paintSkuTable = function (list) {
+  const box = $("#spSkuList");
   const head = `<tr><th>${t("sku")}</th><th>${t("product")}</th><th class="r">${t("sp_stations")}</th>
     <th class="r">${t("gd_total")}</th><th>${t("status")}</th><th>${t("actions")}</th></tr>`;
-  const body = ScorePlan.skus.map((s) => {
+  const body = list.map((s) => {
     const st = ScorePlan.db.status(s.sku);
     const badge = st === "已確認" ? `<span class="badge go">${t("sp_confirmed")}</span>`
       : st === "草稿" ? `<span class="badge warn">${t("sp_draft")}</span>`
