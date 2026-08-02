@@ -302,6 +302,21 @@ tr.warn-row td{background:rgba(248,113,113,.13);color:#fca5a5;font-weight:600}
 .cal-chip.manual{outline:1px dashed #fcd34d}
 .cal-col.drop-hot,.cal-cell.drop-hot{outline:2px dashed var(--go);background:rgba(34,197,94,.12)}
 .cal-mover{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+/* 首頁生產負載卡 */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--card2);color:var(--txt);padding:6px 16px;cursor:pointer;font-size:14px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--go);color:#06240f;font-weight:700}
+.hl-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;width:100%;text-align:left;
+  background:none;border:0;cursor:pointer;padding:0;color:var(--txt)}
+.hl-pct{font-size:42px;font-weight:900;line-height:1.1}
+.hl-caret{margin-left:auto;color:var(--muted);font-size:15px}
+.mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.mrow:last-child{border-bottom:0}
+.mname{width:72px;flex:none;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbar{flex:1;display:flex}
+.mbar .ld-bar{flex:1;min-width:0}
+.mpct{width:84px;flex:none;text-align:right;font-size:15px;font-weight:700}
 /* 人員負荷條：超出 100% 的部分疊深紅，100% 位置畫白線當滿載線 */
 .ld-link{background:transparent;border:0;color:#7dd3fc;font:inherit;font-weight:700;cursor:pointer;
   text-decoration:underline dotted;text-underline-offset:3px;padding:0}

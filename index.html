@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=81">
+  <link rel="stylesheet" href="css/style.css?v=82">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=81" class="header-logo" alt="logo">
+    <img src="logo.png?v=82" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=81" class="login-logo" alt="logo">
+        <img src="logo.png?v=82" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -65,6 +65,16 @@
       <div id="view-home" class="view">
         <div class="card home-head"><div id="homeHead"></div></div>
         <div class="stat-row" id="homeStats" style="margin-bottom:16px"></div>
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0" data-i18n="hl_title">本週生產負載</h3>
+            <span class="seg" id="hlSeg">
+              <button data-v="me" data-i18n="hl_me">個人</button>
+              <button data-v="team" data-i18n="hl_team">團隊</button>
+            </span>
+          </div>
+          <div id="hlBody"><p class="muted" data-i18n="loading">載入中…</p></div>
+        </div>
         <div class="card">
           <h3><span data-i18n="home_target">本月目標</span> <small class="proto-tag" data-i18n="proto">原型</small></h3>
           <div id="homeTarget"></div>
@@ -698,18 +708,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=81"></script>
-  <script src="js/i18n.js?v=81"></script>
-  <script src="js/auth.js?v=81"></script>
-  <script src="js/report.js?v=81"></script>
-  <script src="js/incident.js?v=81"></script>
-  <script src="js/todo.js?v=81"></script>
-  <script src="js/home.js?v=81"></script>
-  <script src="js/score.js?v=81"></script>
-  <script src="js/admin.js?v=81"></script>
-  <script src="js/scoreplan.js?v=81"></script>
-  <script src="js/calendar.js?v=81"></script>
-  <script src="js/nav.js?v=81"></script>
-  <script src="js/notify.js?v=81"></script>
+  <script src="js/config.js?v=82"></script>
+  <script src="js/i18n.js?v=82"></script>
+  <script src="js/auth.js?v=82"></script>
+  <script src="js/report.js?v=82"></script>
+  <script src="js/incident.js?v=82"></script>
+  <script src="js/todo.js?v=82"></script>
+  <script src="js/home.js?v=82"></script>
+  <script src="js/score.js?v=82"></script>
+  <script src="js/admin.js?v=82"></script>
+  <script src="js/scoreplan.js?v=82"></script>
+  <script src="js/calendar.js?v=82"></script>
+  <script src="js/nav.js?v=82"></script>
+  <script src="js/notify.js?v=82"></script>
 </body>
 </html>
