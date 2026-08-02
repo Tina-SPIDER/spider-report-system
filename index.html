@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=80">
+  <link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=80" class="header-logo" alt="logo">
+    <img src="logo.png?v=81" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=80" class="login-logo" alt="logo">
+        <img src="logo.png?v=81" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -120,7 +120,7 @@
             <input id="inNewStation" class="hide" data-i18n-ph="new_station_ph" placeholder="輸入新的站名" style="margin-top:8px">
             <div id="stationProgress"></div>
             <div id="drawingBox" style="margin-top:8px"></div>
-            <label data-i18n="machine">使用機台</label>
+            <label><span data-i18n="machine">使用機台</span> <span class="req">*</span></label>
             <select id="selMachine"></select>
             <input id="inNewMachine" class="hide" data-i18n-ph="new_machine_ph" placeholder="輸入機台名稱" style="margin-top:8px">
             <div style="height:12px"></div>
@@ -632,12 +632,12 @@
       <div id="finForm">
         <label><span data-i18n="qty">生產數量</span> <span class="req">*</span></label>
         <input id="finQty" type="number" min="0" required inputmode="numeric" style="font-size:22px;padding:14px">
-        <label data-i18n="scrap">報廢數量</label>
-        <input id="finScrap" type="number" min="0" inputmode="numeric">
+        <label><span data-i18n="scrap">報廢數量</span> <span class="req">*</span></label>
+        <input id="finScrap" type="number" min="0" required inputmode="numeric" data-i18n-ph="scrap_ph" placeholder="沒有報廢請填 0">
+        <label><span data-i18n="work_content">作業內容</span> <span class="req">*</span></label>
+        <input id="finWork" type="text" required data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
         <details style="margin-top:10px">
           <summary class="muted" style="cursor:pointer;font-size:14px" data-i18n="fin_more">其他（選填）</summary>
-          <label data-i18n="work_content">作業內容</label>
-          <input id="finWork" type="text" data-i18n-ph="work_content_ph" placeholder="填寫作業內容" autocomplete="off">
           <label data-i18n="note">備註</label>
           <input id="finNote" type="text">
         </details>
@@ -698,18 +698,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=80"></script>
-  <script src="js/i18n.js?v=80"></script>
-  <script src="js/auth.js?v=80"></script>
-  <script src="js/report.js?v=80"></script>
-  <script src="js/incident.js?v=80"></script>
-  <script src="js/todo.js?v=80"></script>
-  <script src="js/home.js?v=80"></script>
-  <script src="js/score.js?v=80"></script>
-  <script src="js/admin.js?v=80"></script>
-  <script src="js/scoreplan.js?v=80"></script>
-  <script src="js/calendar.js?v=80"></script>
-  <script src="js/nav.js?v=80"></script>
-  <script src="js/notify.js?v=80"></script>
+  <script src="js/config.js?v=81"></script>
+  <script src="js/i18n.js?v=81"></script>
+  <script src="js/auth.js?v=81"></script>
+  <script src="js/report.js?v=81"></script>
+  <script src="js/incident.js?v=81"></script>
+  <script src="js/todo.js?v=81"></script>
+  <script src="js/home.js?v=81"></script>
+  <script src="js/score.js?v=81"></script>
+  <script src="js/admin.js?v=81"></script>
+  <script src="js/scoreplan.js?v=81"></script>
+  <script src="js/calendar.js?v=81"></script>
+  <script src="js/nav.js?v=81"></script>
+  <script src="js/notify.js?v=81"></script>
 </body>
 </html>

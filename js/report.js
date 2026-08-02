@@ -123,8 +123,18 @@ Report.clearLookup = function () {
   if ($("#woNotFound")) { $("#woNotFound").classList.add("hide"); $("#woNotFound").innerHTML = ""; }
 };
 
+// 臨時工單的站別清單（使用者指定的固定順序，含畫圖／開單等前段作業）
+Report.TEMP_STATIONS = [
+  "畫圖-客戶給圖畫圖", "畫圖-客戶給樣品", "畫圖-從頭到尾設計", "開工作單",
+  "傳統車床", "傳統車床-免對前斜專用機", "傳統車床-5度專用機", "乙炔加工",
+  "傳統銑床", "CNC車床加工", "CNC銑床加工", "CNC研磨加工",
+  "細孔放電加工", "線切割", "成型放電", "無心研磨", "同心研磨",
+  "噴砂", "拋光", "鑽床加工", "平面研磨", "圓筒磨床",
+  "組裝", "品包", "大型立式車", "押出機",
+];
+
 // 臨時開工：ERP 還沒開單，用打的文字（中文也行）當工單識別先做。
-// 沒有製程路線可列，站別改列全廠工站；圖面、貨編分數自然還沒有。
+// 站別用上面的固定清單；圖面、貨編分數自然還沒有。
 Report.setupTemp = function (no) {
   Report.current = { work_order_no: no, temp: true };
   Report._routes = [];
@@ -134,9 +144,9 @@ Report.setupTemp = function (no) {
   ["woSku", "woSpec", "woMat1", "woMat2", "woSurf"].forEach((id) => ($("#" + id).textContent = "—"));
 
   const opts = ['<option value="">' + t("select_station") + "</option>"];
-  Report.stations.forEach((s) => {
-    const v = String(s.code).replace(/"/g, "&quot;");
-    opts.push(`<option value="${v}">${stationName(s)}</option>`);
+  Report.TEMP_STATIONS.forEach((name) => {
+    const v = String(name).replace(/"/g, "&quot;");
+    opts.push(`<option value="${v}">${name}</option>`);
   });
   opts.push(`<option value="__new__">${t("new_station")}</option>`);
   const sel = $("#selStation");
@@ -432,6 +442,7 @@ Report.start = async function () {
   }
   let machine = $("#selMachine").value;
   if (machine === "__new__") machine = $("#inNewMachine").value.trim();
+  if (!machine) { $("#selMachine").focus(); return toast(t("machine_required"), "err"); }   // 機台必填
   const { data, error } = await sb.rpc("start_job", {
     p_work_order_no: Report.current.work_order_no,
     p_station: station,
@@ -721,6 +732,16 @@ Report.confirmFinish = async function () {
     return toast(t("qty_required"), "err");
   }
   const qty = Number(qtyRaw);
+  // 報廢數量必填（沒有報廢填 0），作業內容必填
+  const scrapRaw = $("#finScrap").value.trim();
+  if (scrapRaw === "" || !isFinite(Number(scrapRaw)) || Number(scrapRaw) < 0) {
+    $("#finScrap").focus();
+    return toast(t("scrap_required"), "err");
+  }
+  if (!$("#finWork").value.trim()) {
+    $("#finWork").focus();
+    return toast(t("work_required"), "err");
+  }
   const scrap = $("#finScrap").value === "" ? null : Number($("#finScrap").value);
   const note = $("#finNote").value.trim() || null;
   const workContent = $("#finWork").value.trim() || null;
