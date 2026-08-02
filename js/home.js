@@ -20,6 +20,10 @@ Home.render = async function () {
     <div class="home-date">${Home.today} · ${t("wd" + now.getDay())}</div>
     <div class="home-hello">${t("welcome")}，${homeEsc(App.ME.name)}${App.ME.team ? ` <span class="muted">(${homeEsc(App.ME.team)})</span>` : ""}</div>`;
 
+  // 「我要報工」直達報工頁——不用再去選單裡找
+  const rb = $("#btnHomeReport");
+  if (rb) rb.onclick = () => App.go("report");
+
   await Promise.all([Home.loadRunning(), Home.loadWos(), Home.loadTodos(), Home.loadScore()]);
   Home.paint();
 
