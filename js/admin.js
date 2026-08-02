@@ -1371,6 +1371,7 @@ Admin.loadAssignList = async function () {
 Admin.loadProgress = async function () {
   const q = $("#pgWo").value.trim();
   if (!q) return toast(t("query_wo_first"), "err");
+  if ($("#pgIncCard")) $("#pgIncCard").classList.add("hide");   // 多筆清單時先收起異常區
   const safe = q.replace(/[,()*]/g, " ").trim();
 
   // 用 工單號/客戶/品名 模糊搜尋
@@ -1426,11 +1427,28 @@ Admin.showProgressDetail = async function (wo) {
   const inhouse = routes.filter((r) => r.station_type === "工作站");
   const doneCount = inhouse.filter((r) => stDone(r.station) === "done").length;
   const pct = inhouse.length ? Math.round(doneCount / inhouse.length * 100) : 0;
-  $("#pgInfo").innerHTML = `<div class="wo-info">
-    <span class="k">${t("customer")}</span><span>${woRes.data.customer || ""}</span>
-    <span class="k">${t("product")}</span><span>${woRes.data.product_name || ""}</span>
-    ${hasTotal ? `<span class="k">${t("wo_qty")}</span><span><strong>${total}</strong></span>` : ""}
-    <span class="k">${t("progress_pct")}</span><span><strong>${doneCount}/${inhouse.length}（${pct}%）</strong></span>
+
+  // 交期狀態：已出貨看出貨日 vs 交期，沒出貨看今天 vs 交期
+  const w = woRes.data;
+  const due = w.due_date || null;
+  const today = fmtDate(new Date());
+  let stCls = "mute", stTxt = t("pg_nodue");
+  if (due) {
+    if (w.shipped_at) {
+      if (w.shipped_at <= due) { stCls = "ok"; stTxt = t("pg_ontime"); }
+      else { stCls = "late"; stTxt = t("pg_late"); }
+    } else if (today > due) { stCls = "late"; stTxt = t("pg_late"); }
+    else { stCls = "track"; stTxt = t("pg_ontrack"); }
+  }
+  $("#pgInfo").innerHTML = `<div class="pg-head">
+    <div class="wo-info" style="margin:0">
+      <span class="k">${t("customer")}</span><span>${w.customer || ""}</span>
+      <span class="k">${t("product")}</span><span>${w.product_name || ""}</span>
+      ${hasTotal ? `<span class="k">${t("wo_qty")}</span><span><strong>${total}</strong></span>` : ""}
+      <span class="k">${t("ld_due")}</span><span><strong>${due || "—"}</strong>${w.shipped_at ? `　<small class="muted">${t("ship_done")} ${w.shipped_at}</small>` : ""}</span>
+      <span class="k">${t("progress_pct")}</span><span><strong>${doneCount}/${inhouse.length}（${pct}%）</strong></span>
+    </div>
+    <div class="pg-status ${stCls}">${stTxt}</div>
   </div>`;
 
   const head = `<tr><th>#</th><th>${t("station")}</th><th>${t("status")}</th><th class="r">${t("st_qty_col")}</th>
@@ -1457,6 +1475,39 @@ Admin.showProgressDetail = async function (wo) {
       <td class="r">${qtyCell}</td><td>${who}</td><td class="r" style="white-space:nowrap">${minCell}</td><td>${last}</td></tr>`;
   }).join("");
   $("#pgTable").innerHTML = `<table>${head}${body}</table>`;
+  Admin.loadWoIncidents(wo);
+};
+
+// 這張工單相關的異常回報。
+// incidents 表沒有工單欄位，所以用「內容有提到這個工單號」來對——
+// 員工回報時內文寫了 37960 就抓得到；沒寫工單號的異常對不到，這是已知限制。
+Admin.loadWoIncidents = async function (wo) {
+  const card = $("#pgIncCard"), box = $("#pgIncidents");
+  if (!card) return;
+  card.classList.remove("hide");
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const safe = String(wo).replace(/[,()*%]/g, "");
+  const { data, error } = await sb.from("incidents")
+    .select("category,content,status,created_at,employees(name,team)")
+    .ilike("content", `%${safe}%`)
+    .order("created_at", { ascending: false }).limit(50);
+  if (error) { box.innerHTML = `<p class="muted">${friendlyErr(error)}</p>`; return; }
+  const rows = data || [];
+  if (!rows.length) {
+    box.innerHTML = `<p class="muted">${t("pg_no_inc")}</p>
+      <p class="muted" style="font-size:13px">${t("pg_inc_note", { wo })}</p>`;
+    return;
+  }
+  box.innerHTML = rows.map((r) => {
+    const e = r.employees || {};
+    const done = r.status === "已處理";
+    return `<div class="job-card" style="border-left-color:${done ? "var(--muted)" : "var(--warn)"}">
+      <div class="job-head"><strong>${esc(r.category)}</strong>
+        ${done ? `<span class="badge mute">${t("inc_done")}</span>` : `<span class="badge warn">${t("inc_open")}</span>`}</div>
+      <div class="job-sub" style="white-space:pre-wrap;color:var(--txt)">${esc(r.content)}</div>
+      <div class="job-sub">${esc(e.name)}${e.team ? `（${esc(e.team)}）` : ""} · ${fmtDate(r.created_at)} ${fmtTime(r.created_at)}</div>
+    </div>`;
+  }).join("") + `<p class="muted" style="font-size:13px;margin:8px 0 0">${t("pg_inc_note", { wo })}</p>`;
 };
 
 // ---------- 員工管理 ----------
