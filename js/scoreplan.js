@@ -401,10 +401,12 @@ ScorePlan.paintEditor = function () {
     // 樣本 <3 筆的實際工時參考性低，標黃提醒
     const nCell = out ? "—" : (st.samples
       ? `<span class="badge ${st.samples >= 3 ? "go" : "warn"}">${st.samples}</span>` : `<span class="muted">0</span>`);
-    // 同站名在製程出現多次（例如拋光×3）只設一次比例，標出次數
-    const cntTag = st.cnt > 1 ? ` <span class="badge mute" title="${t("sp_multi_tip")}">×${st.cnt}</span>` : "";
+    // 同站名出現多次時，代碼欄列出全部道次（050·070·090），
+    // 讓人看得出標準製程順序一道都沒少——比例仍然只設一次、各道共用
+    const codes = st._seqs ? [...st._seqs].sort().join("·") : st.seq;
     return `<tr${out ? ' style="opacity:.55"' : ""}>
-      <td>${spEsc(st.seq)}</td><td>${spEsc(st.station)}${cntTag}</td>
+      <td style="white-space:nowrap"${st.cnt > 1 ? ` title="${t("sp_multi_tip")}"` : ""}>${spEsc(codes)}</td>
+      <td>${spEsc(st.station)}</td>
       <td>${out ? t("outsourced") : t("sp_inhouse")}</td>
       <td class="r">${out ? "—" : (st.actual != null ? st.actual : (st.est ? `<span class="badge warn">${t("sp_est")}</span>` : "—"))}</td>
       <td class="r">${nCell}</td>
@@ -415,7 +417,9 @@ ScorePlan.paintEditor = function () {
         : `<strong style="color:var(--go)">${(tot.score * (Number(st.ratio) || 0) / 100).toFixed(2)}</strong>`}</td></tr>`;
   }).join("");
   const basis = (c.stations.find((s) => s.basis) || {}).basis || "even";
-  const basisNote = `<p class="muted" style="font-size:13px;margin:8px 0 0">${t("sp_basis_" + basis)}</p>`;
+  const multiNote = c.stations.some((s) => s.cnt > 1)
+    ? `<p class="muted" style="font-size:13px;margin:8px 0 0">${t("sp_multi_note")}</p>` : "";
+  const basisNote = multiNote + `<p class="muted" style="font-size:13px;margin:8px 0 0">${t("sp_basis_" + basis)}</p>`;
   const totalRow = `<tr><td colspan="5" class="r"><strong>${t("total")}</strong></td>
     <td class="r"><strong style="color:${ok ? "var(--go)" : "var(--err)"}">${total.toFixed(1)}%</strong></td>
     <td class="r"><strong>${tot ? (tot.score * total / 100).toFixed(2) : "—"}</strong></td></tr>`;
