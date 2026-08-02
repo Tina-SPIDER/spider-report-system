@@ -120,6 +120,54 @@ Report.clearLookup = function () {
   if ($("#inNewMachine")) { $("#inNewMachine").value = ""; $("#inNewMachine").classList.add("hide"); }
   if ($("#drawingBox")) $("#drawingBox").innerHTML = "";
   if ($("#stationProgress")) $("#stationProgress").innerHTML = "";
+  if ($("#woNotFound")) { $("#woNotFound").classList.add("hide"); $("#woNotFound").innerHTML = ""; }
+};
+
+// 臨時開工：ERP 還沒開單，用打的文字（中文也行）當工單識別先做。
+// 沒有製程路線可列，站別改列全廠工站；圖面、貨編分數自然還沒有。
+Report.setupTemp = function (no) {
+  Report.current = { work_order_no: no, temp: true };
+  Report._routes = [];
+  $("#woNotFound").classList.add("hide");
+  $("#woCust").textContent = "—";
+  $("#woProduct").textContent = no + " " + t("wo_temp_tag");
+  ["woSku", "woSpec", "woMat1", "woMat2", "woSurf"].forEach((id) => ($("#" + id).textContent = "—"));
+
+  const opts = ['<option value="">' + t("select_station") + "</option>"];
+  Report.stations.forEach((s) => {
+    const v = String(s.code).replace(/"/g, "&quot;");
+    opts.push(`<option value="${v}">${stationName(s)}</option>`);
+  });
+  opts.push(`<option value="__new__">${t("new_station")}</option>`);
+  const sel = $("#selStation");
+  sel.innerHTML = opts.join("");
+  sel.onchange = () => {
+    const isNew = sel.value === "__new__";
+    $("#inNewStation").classList.toggle("hide", !isNew);
+    if (isNew) $("#inNewStation").focus();
+    Report.updateStationProgress();
+  };
+  $("#inNewStation").classList.add("hide");
+  $("#drawingBox").innerHTML = "";
+  $("#stationProgress").innerHTML = `<p class="proto-note" style="margin-top:8px">${t("wo_temp_note")}</p>`;
+
+  const mopts = ['<option value="">' + t("select_machine") + "</option>"];
+  Report.machines.forEach((m) => {
+    const v = String(m.code).replace(/"/g, "&quot;");
+    mopts.push(`<option value="${v}">${m.name}</option>`);
+  });
+  mopts.push(`<option value="__new__">${t("new_machine")}</option>`);
+  const msel = $("#selMachine");
+  msel.innerHTML = mopts.join("");
+  const lastM = Report.lastMachine.get();
+  if (lastM && Report.machines.some((m) => m.code === lastM)) msel.value = lastM;
+  msel.onchange = () => {
+    const isNew = msel.value === "__new__";
+    $("#inNewMachine").classList.toggle("hide", !isNew);
+    if (isNew) $("#inNewMachine").focus();
+  };
+  $("#inNewMachine").classList.add("hide");
+  $("#woInfo").classList.remove("hide");
 };
 
 Report.queryWo = async function () {
@@ -128,10 +176,19 @@ Report.queryWo = async function () {
   const { data, error } = await sb.from("work_orders").select("*").eq("work_order_no", no).maybeSingle();
   if (error) return toast(friendlyErr(error), "err");
   if (!data) {
+    // 查無工單 ≠ 不能做——現場常常 ERP 還來不及開單就要先動工。
+    // 給一條「先開工」的路：直接用打的文字（中文也行）當識別開工，之後再補單。
     Report.current = null;
     $("#woInfo").classList.add("hide");
-    return toast(t("wo_not_found"), "err");
+    $("#woNotFound").classList.remove("hide");
+    $("#woNotFound").innerHTML = `<div class="job-card" style="border-left-color:var(--warn)">
+      <div class="job-head"><strong>${t("wo_nf_title", { no: no.replace(/</g, "&lt;") })}</strong></div>
+      <div class="job-sub">${t("wo_nf_hint")}</div>
+      <div class="job-btns"><button id="btnTempStart" class="btn small go">⚡ ${t("wo_nf_btn")}</button></div></div>`;
+    $("#btnTempStart").onclick = () => Report.setupTemp(no);
+    return;
   }
+  $("#woNotFound").classList.add("hide");
   Report.current = data;
   $("#woSku").textContent = data.sku || "-";
   $("#woProduct").textContent = data.product_name || "-";
