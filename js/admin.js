@@ -277,13 +277,21 @@ Admin.loadLoad = async function () {
 
 // ---------- 工單給分（主管）----------
 // 分數綁在「貨編」上：同貨編的工單共用一個總分，之後開新單自動沿用。
-// ⚠️ 原型：存瀏覽器 localStorage，不寫資料庫、不影響實際計分。
+// 已接真的資料庫：寫入走 set_sku_score RPC，權限檢查在資料庫端。
+// ⚠️ 完全取代舊的 10 分制——沒給分的貨編報工會記「待設定」0 分，
+//    補給分後在這頁按「重算待設定」補回。
 Admin.initGrade = function () {
   $("#btnGdQuery").onclick = Admin.loadGrade;
   $("#gdFilter").onchange = Admin.loadGrade;
   $("#gdSearch").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); Admin.loadGrade(); } };
-  $("#gdProto") || $("#gdTable").previousElementSibling;
+  $("#btnGdRecompute").onclick = Admin.recomputeSku;
   Admin.loadGrade();
+};
+
+Admin.recomputeSku = async function () {
+  const { data, error } = await sb.rpc("recompute_sku_pending");
+  if (error) return toast(friendlyErr(error), "err");
+  toast(t("gd_recomputed", { n: data || 0 }), "ok");
 };
 
 Admin.loadGrade = async function () {
@@ -308,8 +316,11 @@ Admin.loadGrade = async function () {
     if (mats.size > 1) mixed.add(sku);
   });
 
-  if (mode === "none") rows = rows.filter((w) => !ScorePlan.store.total(w.sku));
-  else if (mode === "has") rows = rows.filter((w) => ScorePlan.store.total(w.sku));
+  // 從資料庫載入這批貨編的總分
+  await ScorePlan.db.loadFor(Object.keys(bySku));
+
+  if (mode === "none") rows = rows.filter((w) => !ScorePlan.db.total(w.sku));
+  else if (mode === "has") rows = rows.filter((w) => ScorePlan.db.total(w.sku));
   $("#gdCount").textContent = t("jobs_total", { n: rows.length });
   Admin._gdMixed = mixed;
 
@@ -320,10 +331,10 @@ Admin.loadGrade = async function () {
     <th>${t("gd_material")}</th><th>${t("customer")}</th><th class="r">${t("wo_qty")}</th>
     <th class="r">${t("gd_total")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((w) => {
-    const rec = ScorePlan.store.total(w.sku);
+    const rec = ScorePlan.db.total(w.sku);
     const mat = [w.material_body, w.material_second, w.surface_treatment].filter(Boolean).join(" / ");
     const warn = mixed.has(w.sku) ? ` <span class="badge err" title="${t("gd_mixed_tip")}">⚠ ${t("gd_mixed")}</span>` : "";
-    const info = rec ? `<div class="job-sub">${t("gd_by", { who: esc(rec.by), at: rec.at })}</div>` : "";
+    const info = rec ? `<div class="job-sub">${t("gd_at", { at: rec.at })}</div>` : "";
     return `<tr data-sku="${esc(w.sku)}" data-wo="${esc(w.work_order_no)}">
       <td>${esc(w.work_order_no)}</td>
       <td>${esc(w.sku)}${warn}</td>
@@ -340,28 +351,23 @@ Admin.loadGrade = async function () {
   box.innerHTML = `<table>${head}${body}</table>`;
 
   $$("#gdTable button[data-save]").forEach((b) => {
-    b.onclick = () => {
+    b.onclick = async () => {
       const sku = b.dataset.save;
       const tr = b.closest("tr");
       const v = tr.querySelector(`input[data-gd]`).value.trim();
       if (v === "" || !isFinite(Number(v)) || Number(v) < 0) return toast(t("gd_need_score"), "err");
-      const w = rows.find((x) => x.sku === sku) || {};
-      ScorePlan.store.setTotal(sku, {
-        score: Number(v), product_name: w.product_name || "",
-        material_body: w.material_body || "", material_second: w.material_second || "",
-        surface_treatment: w.surface_treatment || "",
-        by: App.ME.name, at: new Date().toISOString().slice(0, 16).replace("T", " "),
-        wo: tr.dataset.wo,
-      });
+      const { error } = await sb.rpc("set_sku_score", { p_sku: sku, p_score: Number(v) });
+      if (error) return toast(friendlyErr(error), "err");
       const n = (bySku[sku] || []).length;
       toast(t("gd_saved", { sku, n }), "ok");
       Admin.loadGrade();
     };
   });
   $$("#gdTable button[data-clr]").forEach((b) => {
-    b.onclick = () => {
+    b.onclick = async () => {
       if (!confirm(t("gd_clear_ask"))) return;
-      ScorePlan.store.setTotal(b.dataset.clr, null);
+      const { error } = await sb.rpc("set_sku_score", { p_sku: b.dataset.clr, p_score: null });
+      if (error) return toast(friendlyErr(error), "err");
       toast(t("saved_del"), "ok");
       Admin.loadGrade();
     };

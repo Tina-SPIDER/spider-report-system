@@ -226,7 +226,33 @@ Report.updateStationProgress = async function () {
     : "";
   box.innerHTML = `<div class="station-progress">
     <span class="badge ${cls}">${t("st_progress")}</span>
-    <span class="sp-txt">${txt}</span>${bar}</div>`;
+    <span class="sp-txt">${txt}</span>${bar}</div>
+    <div id="stationScore"></div>`;
+  Report.updateStationScore(station, reqId);
+};
+
+// 本站分數：貨編總分 × 該站比例（要「已確認」才生效）。
+// 還沒給分／還沒確認比例就明白告訴員工「完成後暫記待設定」，
+// 別讓人做完才發現 0 分。
+Report.updateStationScore = async function (station, reqId) {
+  const box = $("#stationScore");
+  if (!box || !Report.current || !Report.current.sku) return;
+  const sku = Report.current.sku;
+  const [{ data: sc }, { data: rt }, { data: st }] = await Promise.all([
+    sb.from("sku_scores").select("score").eq("sku", sku).maybeSingle(),
+    sb.from("sku_station_ratios").select("ratio").eq("sku", sku).eq("station", station).maybeSingle(),
+    sb.from("sku_ratio_status").select("status").eq("sku", sku).maybeSingle(),
+  ]);
+  if (reqId !== Report._spReq) return;      // 期間又換了站
+  const total = sc ? Number(sc.score) : null;
+  const ratio = rt ? Number(rt.ratio) : null;
+  const confirmed = st && st.status === "已確認";
+  if (total != null && ratio != null && confirmed) {
+    box.innerHTML = `<div class="sp-total" style="margin-top:6px">${t("sp_st_score")}　<b>${(total * ratio / 100).toFixed(2)}</b>
+      <small class="muted">${t("st_score_calc", { s: total, r: ratio })}</small></div>`;
+  } else {
+    box.innerHTML = `<div class="sp-total none" style="margin-top:6px">${total == null ? t("st_no_score") : t("st_no_ratio")}</div>`;
+  }
 };
 
 // 選到某站 → 自動在下方帶出「該站圖面」獨立預覽欄（可放大縮小）

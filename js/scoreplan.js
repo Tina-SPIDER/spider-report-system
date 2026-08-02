@@ -13,7 +13,37 @@ const spEsc = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const SP_KEY = "scoreplan_mock_v1";
 
-// ---------- 假資料層（原型用）----------
+// ---------- 資料層（已改為真的資料庫）----------
+// 讀：sku_scores / sku_station_ratios / sku_ratio_status
+// 寫：透過 RPC（權限檢查在資料庫端）
+ScorePlan.db = {
+  cache: { scores: {}, ratios: {}, status: {} },
+
+  async loadFor(skus) {
+    const c = { scores: {}, ratios: {}, status: {} };
+    if (!skus.length) { ScorePlan.db.cache = c; return c; }
+    for (const part of spChunk(skus, 100)) {
+      const [a, b, s] = await Promise.all([
+        sb.from("sku_scores").select("sku,score,graded_at").in("sku", part),
+        sb.from("sku_station_ratios").select("sku,station,ratio").in("sku", part),
+        sb.from("sku_ratio_status").select("sku,status,confirmed_at").in("sku", part),
+      ]);
+      (a.data || []).forEach((x) => (c.scores[x.sku] = x));
+      (b.data || []).forEach((x) => ((c.ratios[x.sku] = c.ratios[x.sku] || {})[x.station] = Number(x.ratio)));
+      (s.data || []).forEach((x) => (c.status[x.sku] = x));
+    }
+    ScorePlan.db.cache = c;
+    return c;
+  },
+  total(sku) {
+    const s = ScorePlan.db.cache.scores[sku];
+    return s ? { score: Number(s.score), at: (s.graded_at || "").slice(0, 16).replace("T", " ") } : null;
+  },
+  ratios(sku) { return ScorePlan.db.cache.ratios[sku] || null; },
+  status(sku) { return (ScorePlan.db.cache.status[sku] || {}).status || null; },
+};
+
+// ---------- 舊的瀏覽器暫存層（僅供修改申請沿用，之後會一併搬進資料庫）----------
 ScorePlan.store = {
   read() {
     try { return JSON.parse(localStorage.getItem(SP_KEY)) || { rules: {}, requests: [] }; }
@@ -41,9 +71,56 @@ ScorePlan.store = {
 
 ScorePlan.render = function () {
   $("#spFile").onchange = ScorePlan.readFile;
-  $("#btnSpReload").onclick = () => ScorePlan.renderSkuList();
-  ScorePlan.renderSkuList();
+  $("#btnSpReload").onclick = () => ScorePlan.loadFromDb();
+  if (!ScorePlan.skus.length) ScorePlan.loadFromDb();
+  else ScorePlan.renderSkuList();
   ScorePlan.renderRequests();
+};
+
+// ---------- 0) 直接從資料庫載入貨編清單（不必再上傳 ERP 檔）----------
+// 工單和製程站每小時都自動匯入了，這頁直接讀現成的。
+// 上傳 ERP 檔仍保留，當成補充來源。
+ScorePlan.loadFromDb = async function () {
+  $("#spResult").textContent = t("sp_reading");
+  const { data: wos, error } = await sb.from("work_orders")
+    .select("work_order_no,sku,product_name")
+    .order("work_order_no", { ascending: false }).limit(600);
+  if (error) { $("#spResult").textContent = friendlyErr(error); return; }
+
+  const bySku = {};
+  const woOf = {};
+  (wos || []).forEach((w) => {
+    if (!w.sku) return;
+    woOf[w.work_order_no] = w.sku;
+    if (!bySku[w.sku]) bySku[w.sku] = { sku: w.sku, product_name: w.product_name || "", stations: [] };
+  });
+
+  const nos = Object.keys(woOf);
+  for (const part of spChunk(nos, 200)) {
+    const { data: rts } = await sb.from("work_order_routes")
+      .select("work_order_no,seq,station,station_type,std_minutes").in("work_order_no", part);
+    (rts || []).forEach((r) => {
+      const s = bySku[woOf[r.work_order_no]];
+      if (!s) return;
+      if (!s.stations.some((x) => x.seq === r.seq && x.station === r.station)) {
+        s.stations.push({ seq: r.seq, station: r.station,
+          station_type: r.station_type || "工作站", std: Number(r.std_minutes) || 0 });
+      }
+    });
+  }
+
+  ScorePlan.skus = Object.values(bySku)
+    .filter((s) => s.stations.length)
+    .map((s) => { s.stations.sort((a, b) => String(a.seq).localeCompare(String(b.seq))); return s; })
+    .sort((a, b) => a.sku.localeCompare(b.sku));
+
+  $("#spResult").textContent = t("sp_loading_actual");
+  await ScorePlan.loadActual();
+  await ScorePlan.db.loadFor(ScorePlan.skus.map((s) => s.sku));
+  ScorePlan.skus.forEach((s) => ScorePlan.applySuggested(s.stations, s.sku));
+
+  $("#spResult").textContent = t("sp_read_done", { n: ScorePlan.skus.length });
+  ScorePlan.renderSkuList();
 };
 
 // ---------- 1) 讀 ERP 檔，算各站建議比例 ----------
@@ -215,14 +292,16 @@ ScorePlan.renderSkuList = function () {
   const box = $("#spSkuList");
   if (!ScorePlan.skus.length) { box.innerHTML = `<p class="muted">${t("sp_no_file")}</p>`; return; }
   const head = `<tr><th>${t("sku")}</th><th>${t("product")}</th><th class="r">${t("sp_stations")}</th>
-    <th>${t("status")}</th><th>${t("actions")}</th></tr>`;
+    <th class="r">${t("gd_total")}</th><th>${t("status")}</th><th>${t("actions")}</th></tr>`;
   const body = ScorePlan.skus.map((s) => {
-    const rule = ScorePlan.store.rule(s.sku);
-    const badge = !rule ? `<span class="badge mute">${t("sp_unset")}</span>`
-      : rule.status === "已確認" ? `<span class="badge go">${t("sp_confirmed")}</span>`
-      : `<span class="badge warn">${t("sp_draft")}</span>`;
+    const st = ScorePlan.db.status(s.sku);
+    const badge = st === "已確認" ? `<span class="badge go">${t("sp_confirmed")}</span>`
+      : st === "草稿" ? `<span class="badge warn">${t("sp_draft")}</span>`
+      : `<span class="badge mute">${t("sp_unset")}</span>`;
+    const tot = ScorePlan.db.total(s.sku);
+    const totCell = tot ? `<strong>${tot.score}</strong>` : `<span class="muted">—</span>`;
     return `<tr><td>${spEsc(s.sku)}</td><td>${spEsc(s.product_name)}</td>
-      <td class="r">${s.stations.length}</td><td>${badge}</td>
+      <td class="r">${s.stations.length}</td><td class="r">${totCell}</td><td>${badge}</td>
       <td><button class="btn small primary" data-sku="${spEsc(s.sku)}">${t("sp_edit")}</button></td></tr>`;
   }).join("");
   box.innerHTML = `<table>${head}${body}</table>`;
@@ -233,13 +312,16 @@ ScorePlan.renderSkuList = function () {
 ScorePlan.open = function (sku) {
   const s = ScorePlan.skus.find((x) => x.sku === sku);
   if (!s) return;
-  const rule = ScorePlan.store.rule(sku);
-  // 已存的比例優先，其次用建議值
-  const stations = s.stations.map((st) => {
-    const saved = rule && rule.stations.find((r) => r.seq === st.seq && r.station === st.station);
-    return { ...st, ratio: saved ? Number(saved.ratio) : st.suggest };
-  });
-  ScorePlan.current = { sku, product_name: s.product_name, stations, locked: !!(rule && rule.status === "已確認"), rule };
+  // 已存的比例（資料庫）優先，其次用建議值
+  const saved = ScorePlan.db.ratios(sku);
+  const stations = s.stations.map((st) => ({
+    ...st,
+    ratio: saved && saved[st.station] != null ? Number(saved[st.station]) : st.suggest,
+  }));
+  const status = ScorePlan.db.status(sku);
+  // 已確認就鎖定；主管例外（資料庫端允許主管直接覆蓋）
+  const locked = status === "已確認" && !(App.ME && App.ME.role === "主管");
+  ScorePlan.current = { sku, product_name: s.product_name, stations, locked, status };
   ScorePlan.paintEditor();
   $("#spEditor").classList.remove("hide");
   $("#spEditor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -252,13 +334,14 @@ ScorePlan.paintEditor = function () {
   const total = ScorePlan.total();
   const ok = Math.abs(total - 100) < 0.05;
 
-  const confirmInfo = (c.rule && c.rule.status === "已確認")
-    ? `<div class="job-sub">${t("sp_confirmed_by", { who: spEsc(c.rule.confirmed_by), at: c.rule.confirmed_at })}</div>` : "";
+  const st0 = ScorePlan.db.cache.status[c.sku] || {};
+  const confirmInfo = c.status === "已確認"
+    ? `<div class="job-sub">${t("sp_confirmed_at", { at: (st0.confirmed_at || "").slice(0, 16).replace("T", " ") })}</div>` : "";
 
   // 主管給的訂單總分（綁貨編）。沒給就沒辦法算出各站實得分數
-  const tot = ScorePlan.store.total(c.sku);
+  const tot = ScorePlan.db.total(c.sku);
   const totLine = tot
-    ? `<div class="sp-total">${t("gd_total")}　<b>${tot.score}</b>　<small class="muted">${t("gd_by", { who: spEsc(tot.by), at: tot.at })}</small></div>`
+    ? `<div class="sp-total">${t("gd_total")}　<b>${tot.score}</b>　<small class="muted">${t("gd_at", { at: tot.at })}</small></div>`
     : `<div class="sp-total none">${t("sp_no_total")}</div>`;
   $("#spEditorHead").innerHTML = `
     <div style="font-size:20px;font-weight:800">${spEsc(c.sku)}</div>
@@ -333,17 +416,19 @@ ScorePlan.total = function () {
     .reduce((a, b) => a + (Number(b.ratio) || 0), 0);
 };
 
-ScorePlan.save = function (status) {
+// 寫進資料庫（save_sku_ratios RPC）。
+// 合計 100% 的檢查資料庫端也會再擋一次——就算有人繞過畫面直接打 API 也存不進去。
+ScorePlan.save = async function (status) {
   const c = ScorePlan.current;
-  if (status === "已確認" && Math.abs(ScorePlan.total() - 100) >= 0.05) return toast(t("sp_must_100"), "err");
-  const rule = {
-    sku: c.sku, product_name: c.product_name, status,
-    stations: c.stations.map((s) => ({ seq: s.seq, station: s.station, station_type: s.station_type, std: s.std, ratio: s.station_type === "加工戶" ? 0 : Number(s.ratio) || 0 })),
-    confirmed_by: status === "已確認" ? App.ME.name : (c.rule ? c.rule.confirmed_by : null),
-    confirmed_at: status === "已確認" ? new Date().toISOString().slice(0, 16).replace("T", " ") : (c.rule ? c.rule.confirmed_at : null),
-  };
-  ScorePlan.store.saveRule(rule);
-  toast(status === "已確認" ? t("sp_confirmed_ok") : t("saved"), "ok");
+  const confirm_ = status === "已確認";
+  if (confirm_ && Math.abs(ScorePlan.total() - 100) >= 0.05) return toast(t("sp_must_100"), "err");
+  const ratios = c.stations
+    .filter((s) => s.station_type !== "加工戶")
+    .map((s) => ({ station: s.station, ratio: Number(s.ratio) || 0 }));
+  const { error } = await sb.rpc("save_sku_ratios", { p_sku: c.sku, p_ratios: ratios, p_confirm: confirm_ });
+  if (error) return toast(friendlyErr(error), "err");
+  toast(confirm_ ? t("sp_confirmed_ok") : t("saved"), "ok");
+  await ScorePlan.db.loadFor([c.sku]);
   ScorePlan.open(c.sku);
   ScorePlan.renderSkuList();
 };

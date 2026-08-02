@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=71">
+  <link rel="stylesheet" href="css/style.css?v=72">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=71" class="header-logo" alt="logo">
+    <img src="logo.png?v=72" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=71" class="login-logo" alt="logo">
+        <img src="logo.png?v=72" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -363,7 +363,7 @@
         <div id="pane-grade" class="admin-pane hide">
           <div class="card">
             <h3 data-i18n="admin_grade">工單給分</h3>
-            <p class="proto-note" data-i18n="gd_proto"></p>
+            <p class="proto-note" data-i18n="gd_live"></p>
             <div class="row">
               <input id="gdSearch" class="grow" data-i18n-ph="gd_search_ph" placeholder="工單號碼 / 貨編 / 客戶 / 品名" autocomplete="off">
               <select id="gdFilter" style="width:auto;min-width:150px">
@@ -372,6 +372,7 @@
                 <option value="has" data-i18n="gd_f_has">已給分</option>
               </select>
               <button id="btnGdQuery" class="btn primary" data-i18n="query">查詢</button>
+              <button id="btnGdRecompute" class="btn ghost" data-i18n="gd_recompute">重算待設定</button>
             </div>
             <div id="gdCount" class="muted" style="font-size:14px;margin-top:10px"></div>
             <div id="gdTable" style="overflow-x:auto;margin-top:6px"></div>
@@ -685,18 +686,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=71"></script>
-  <script src="js/i18n.js?v=71"></script>
-  <script src="js/auth.js?v=71"></script>
-  <script src="js/report.js?v=71"></script>
-  <script src="js/incident.js?v=71"></script>
-  <script src="js/todo.js?v=71"></script>
-  <script src="js/home.js?v=71"></script>
-  <script src="js/score.js?v=71"></script>
-  <script src="js/admin.js?v=71"></script>
-  <script src="js/scoreplan.js?v=71"></script>
-  <script src="js/calendar.js?v=71"></script>
-  <script src="js/nav.js?v=71"></script>
-  <script src="js/notify.js?v=71"></script>
+  <script src="js/config.js?v=72"></script>
+  <script src="js/i18n.js?v=72"></script>
+  <script src="js/auth.js?v=72"></script>
+  <script src="js/report.js?v=72"></script>
+  <script src="js/incident.js?v=72"></script>
+  <script src="js/todo.js?v=72"></script>
+  <script src="js/home.js?v=72"></script>
+  <script src="js/score.js?v=72"></script>
+  <script src="js/admin.js?v=72"></script>
+  <script src="js/scoreplan.js?v=72"></script>
+  <script src="js/calendar.js?v=72"></script>
+  <script src="js/nav.js?v=72"></script>
+  <script src="js/notify.js?v=72"></script>
 </body>
 </html>
