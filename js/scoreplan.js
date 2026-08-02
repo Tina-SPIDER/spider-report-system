@@ -73,6 +73,12 @@ ScorePlan.render = function () {
   $("#spFile").onchange = ScorePlan.readFile;
   $("#btnSpReload").onclick = () => ScorePlan.loadFromDb();
   if (!ScorePlan.skus.length) ScorePlan.loadFromDb();
+  else if (ScorePlan._pendingOpen) {
+    const sku = ScorePlan._pendingOpen;
+    ScorePlan._pendingOpen = null;
+    ScorePlan.renderSkuList();
+    if (ScorePlan.skus.some((s) => s.sku === sku)) ScorePlan.open(sku);
+  }
   else ScorePlan.renderSkuList();
   ScorePlan.renderRequests();
 };
@@ -121,6 +127,13 @@ ScorePlan.loadFromDb = async function () {
 
   $("#spResult").textContent = t("sp_read_done", { n: ScorePlan.skus.length });
   ScorePlan.renderSkuList();
+
+  // 從「工單給分」的「比例」鈕跳過來 → 直接打開那個貨編
+  if (ScorePlan._pendingOpen) {
+    const sku = ScorePlan._pendingOpen;
+    ScorePlan._pendingOpen = null;
+    if (ScorePlan.skus.some((s) => s.sku === sku)) ScorePlan.open(sku);
+  }
 };
 
 // ---------- 1) 讀 ERP 檔，算各站建議比例 ----------

@@ -345,6 +345,7 @@ Admin.loadGrade = async function () {
         value="${rec ? rec.score : ""}" data-gd="${esc(w.sku)}">${info}</td>
       <td style="white-space:nowrap">
         <button class="btn small go" data-save="${esc(w.sku)}">${t("save")}</button>
+        <button class="btn small primary" data-ratio="${esc(w.sku)}">${t("gd_ratio")}</button>
         ${rec ? `<button class="btn small danger" data-clr="${esc(w.sku)}">${t("act_delete")}</button>` : ""}
       </td></tr>`;
   }).join("");
@@ -370,6 +371,14 @@ Admin.loadGrade = async function () {
       if (error) return toast(friendlyErr(error), "err");
       toast(t("saved_del"), "ok");
       Admin.loadGrade();
+    };
+  });
+  // 「比例」→ 直接跳到計分比例頁並打開這個貨編（不用自己去找）
+  $$("#gdTable button[data-ratio]").forEach((b) => {
+    b.onclick = () => {
+      ScorePlan._pendingOpen = b.dataset.ratio;
+      Admin.tab = "scoreplan";
+      App.go("admin");
     };
   });
 };
