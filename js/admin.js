@@ -875,7 +875,7 @@ Admin.jobsQuery = function () {
 Admin.jobsSelect = function (opts) {
   const q = Admin.jobsQuery();
   return sb.from("jobs")
-    .select("id,start_at,end_at,paused_minutes,work_minutes,qty,scrap_qty,note,work_content,station,status,work_order_no,employees(name,team)", opts)
+    .select("id,start_at,end_at,paused_minutes,work_minutes,qty,scrap_qty,note,work_content,station,machine,status,work_order_no,employees(name,team)", opts)
     .gte("start_at", q.from)
     .lt("start_at", q.toNext)
     .order("start_at", { ascending: false })
@@ -1038,13 +1038,24 @@ Admin.exportJobs = async function () {
   btn.disabled = false; btn.textContent = label;
 
   if (!rows.length) return toast(t("no_data"), "err");
+
+  // 補上產品名稱：報工紀錄只存工單號，品名要回 work_orders 查（分批避免網址過長）
+  const woNames = {};
+  const nos = [...new Set(rows.map((j) => j.work_order_no).filter(Boolean))];
+  for (let i = 0; i < nos.length; i += 100) {
+    const { data: wos } = await sb.from("work_orders")
+      .select("work_order_no,product_name").in("work_order_no", nos.slice(i, i + 100));
+    (wos || []).forEach((w) => (woNames[w.work_order_no] = w.product_name || ""));
+  }
+
   const stMap = { running: t("status_running"), paused: t("status_paused"), done: t("status_done") };
-  const aoa = [[t("name"), t("team"), t("wo_no"), t("station"), t("work_content"),
+  const aoa = [[t("name"), t("team"), t("wo_no"), t("product"), t("station"), t("machine"), t("work_content"),
     t("jb_start_d"), t("jb_start_t"), t("jb_end_d"), t("jb_end_t"),
     t("jb_paused"), t("work_min"), t("qty"), t("scrap"), t("note"), t("status")]];
   rows.forEach((j) => {
     const e = j.employees || {};
-    aoa.push([e.name || "", e.team || "", j.work_order_no, j.station, j.work_content || "",
+    aoa.push([e.name || "", e.team || "", j.work_order_no, woNames[j.work_order_no] || "",
+      j.station, j.machine || "", j.work_content || "",
       j.start_at ? fmtDate(j.start_at) : "", j.start_at ? fmtTime(j.start_at) : "",
       j.end_at ? fmtDate(j.end_at) : "", j.end_at ? fmtTime(j.end_at) : "",
       Number(j.paused_minutes) || 0,
