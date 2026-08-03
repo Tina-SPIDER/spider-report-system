@@ -115,7 +115,7 @@ Report.clearLookup = function () {
   $("#woInfo").classList.add("hide");
   $("#inWoNo").value = "";
   $("#selStation").innerHTML = "";
-  if ($("#inNewStation")) { $("#inNewStation").value = ""; $("#inNewStation").classList.add("hide"); }
+  if ($("#selNewStation")) { $("#selNewStation").value = ""; $("#selNewStation").classList.add("hide"); }
   if ($("#selMachine")) $("#selMachine").innerHTML = "";
   if ($("#inNewMachine")) { $("#inNewMachine").value = ""; $("#inNewMachine").classList.add("hide"); }
   if ($("#drawingBox")) $("#drawingBox").innerHTML = "";
@@ -133,6 +133,18 @@ Report.TEMP_STATIONS = [
   "組裝", "品包", "大型立式車", "押出機",
 ];
 
+// 「新增站名」的第二層下拉：跟臨時工單共用同一份固定站別清單
+Report.fillNewStationSel = function () {
+  const sel = $("#selNewStation");
+  if (!sel) return;
+  const opts = ['<option value="">' + t("select_station") + "</option>"];
+  Report.TEMP_STATIONS.forEach((name) => {
+    const v = String(name).replace(/"/g, "&quot;");
+    opts.push(`<option value="${v}">${name}</option>`);
+  });
+  sel.innerHTML = opts.join("");
+};
+
 // 臨時開工：ERP 還沒開單，用打的文字（中文也行）當工單識別先做。
 // 站別用上面的固定清單；圖面、貨編分數自然還沒有。
 Report.setupTemp = function (no) {
@@ -143,21 +155,16 @@ Report.setupTemp = function (no) {
   $("#woProduct").textContent = no + " " + t("wo_temp_tag");
   ["woSku", "woSpec", "woMat1", "woMat2", "woSurf"].forEach((id) => ($("#" + id).textContent = "—"));
 
+  // 臨時工單的主下拉本來就是固定站別清單，不再提供手打站名
   const opts = ['<option value="">' + t("select_station") + "</option>"];
   Report.TEMP_STATIONS.forEach((name) => {
     const v = String(name).replace(/"/g, "&quot;");
     opts.push(`<option value="${v}">${name}</option>`);
   });
-  opts.push(`<option value="__new__">${t("new_station")}</option>`);
   const sel = $("#selStation");
   sel.innerHTML = opts.join("");
-  sel.onchange = () => {
-    const isNew = sel.value === "__new__";
-    $("#inNewStation").classList.toggle("hide", !isNew);
-    if (isNew) $("#inNewStation").focus();
-    Report.updateStationProgress();
-  };
-  $("#inNewStation").classList.add("hide");
+  sel.onchange = () => { Report.updateStationProgress(); };
+  $("#selNewStation").classList.add("hide");
   $("#drawingBox").innerHTML = "";
   $("#stationProgress").innerHTML = `<p class="proto-note" style="margin-top:8px">${t("wo_temp_note")}</p>`;
 
@@ -220,15 +227,16 @@ Report.queryWo = async function () {
   opts.push(`<option value="__new__">${t("new_station")}</option>`);
   const sel = $("#selStation");
   sel.innerHTML = opts.join("");
+  // 選「新增站名」時展開第二層下拉——跟臨時工單同一份固定站別清單，不讓現場手打
+  Report.fillNewStationSel();
   sel.onchange = () => {
     const isNew = sel.value === "__new__";
-    $("#inNewStation").classList.toggle("hide", !isNew);
-    if (isNew) $("#inNewStation").focus();
+    $("#selNewStation").classList.toggle("hide", !isNew);
     Report.updateDrawing();
     Report.updateStationProgress();
   };
   $("#stationProgress").innerHTML = "";
-  $("#inNewStation").classList.add("hide");
+  $("#selNewStation").classList.add("hide");
   $("#drawingBox").innerHTML = "";
 
   // 機台下拉（全廠機台 + 新增機台；可不選）
@@ -432,7 +440,7 @@ Report.viewDrawing = async function (path, title) {
 Report.start = async function () {
   if (!Report.current) return toast(t("wo_not_found"), "err");
   let station = $("#selStation").value;
-  if (station === "__new__") station = $("#inNewStation").value.trim();
+  if (station === "__new__") station = $("#selNewStation").value;
   if (!station) return toast(t("select_station"), "err");
   // 這一站已經做滿工單數量了還要開工，多半是選錯站或補做／重工，先確認一次。
   // 不硬擋——退貨重工、補做都是現場真的會發生的事。
