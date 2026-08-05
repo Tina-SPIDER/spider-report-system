@@ -650,6 +650,8 @@ Report.action = async function (id, act) {
   if (act === "pause") {
     Report.openPause(id);
   } else if (act === "resume") {
+    // 順手把這次暫停的「恢復時間」補回 job_pauses（欄位還沒建就靜靜略過）
+    sb.rpc("mark_pause_resumed", { p_job_id: id }).then(() => {}, () => {});
     const { error } = await sb.rpc("resume_job", { p_job_id: id });
     if (error) return toast(friendlyErr(error), "err");
     await Report.loadRunning();

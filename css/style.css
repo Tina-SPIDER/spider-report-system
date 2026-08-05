@@ -403,3 +403,16 @@ tr.ld-detail td{background:var(--card2);padding:10px 12px}
 .dv .dbtn{background:#2a2a2a;color:#fff;border-color:#555;padding:9px 15px;font-size:18px}
 .dv-stage{flex:1;overflow:auto;touch-action:none;cursor:grab}
 .dv-stage img{display:block;width:100%;user-select:none;-webkit-user-drag:none;background:#fff}
+
+/* ---------- 每日站別回報 ---------- */
+.sr-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.sr-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;
+  border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:10px}
+.sr-head .nm{font-size:20px;font-weight:800}
+.sr-head .dt{color:var(--muted);font-size:14px}
+.sr-sums{display:flex;gap:22px;flex-wrap:wrap;margin:2px 0 12px}
+.sr-sums .s{font-size:13px;color:var(--muted)}
+.sr-sums .s b{font-size:22px;color:var(--txt)}
+.sr-bar{height:6px;border-radius:3px;background:#3987e5;margin-top:3px;max-width:220px}
+.y-ok{color:#22c55e}.y-warn{color:#fbbf24}.y-bad{color:#f87171}
+.sr-foot{color:var(--muted);font-size:12px;margin-top:10px}

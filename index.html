@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=86">
+  <link rel="stylesheet" href="css/style.css?v=87">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=86" class="header-logo" alt="logo">
+    <img src="logo.png?v=87" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=86" class="login-logo" alt="logo">
+        <img src="logo.png?v=87" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -239,6 +239,7 @@
             <div class="tab-group-btns">
               <button data-atab="dashboard" class="active" data-i18n="admin_dash">即時看板</button>
               <button data-atab="machine" data-i18n="machine_usage">機台使用率</button>
+              <button data-atab="streport" data-i18n="admin_streport">每日站別回報</button>
               <button data-atab="progress" data-i18n="admin_progress">工單進度</button>
             </div>
           </div>
@@ -247,6 +248,7 @@
             <div class="tab-group-btns">
               <button data-atab="assign" data-i18n="admin_assign">工單指派</button>
               <button data-atab="jobs" data-i18n="admin_jobs">報工紀錄</button>
+              <button data-atab="audit" data-i18n="admin_audit">報工稽核</button>
               <button data-atab="incident" data-i18n="admin_incident">異常回報</button>
               <button data-atab="todos" data-i18n="admin_todos">員工待辦</button>
               <button data-atab="overview" data-i18n="admin_overview">全員總覽</button>
@@ -348,6 +350,39 @@
             <h4 style="margin:0 0 10px" data-i18n="pg_incidents">相關異常回報</h4>
             <div id="pgIncidents"></div>
           </div>
+        </div>
+
+        <!-- 報工稽核（月報） -->
+        <div id="pane-audit" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_audit">報工稽核</h3>
+            <div class="row" style="align-items:center">
+              <input id="auMonth" type="month" style="width:auto">
+              <select id="auEmp" style="width:auto;min-width:130px"></select>
+              <label style="margin:0" data-i18n="au_threshold">未滿(小時)</label>
+              <input id="auHours" type="number" value="6" min="1" max="12" style="width:80px">
+              <label style="margin:0;display:flex;align-items:center;gap:6px"><input type="checkbox" id="auSkipSun" checked style="width:auto"> <span data-i18n="au_skip_sun">週末(六日)不稽核</span></label>
+              <button id="btnAuQuery" class="btn primary" data-i18n="query">查詢</button>
+              <button id="btnAuExport" class="btn ghost" data-i18n="export_excel">匯出 Excel</button>
+            </div>
+            <p class="muted" data-i18n="au_hint" style="font-size:13px;margin:8px 0 0">每月整理用：①當天報工未滿門檻 ②疑似忘記按結束 ③整天完全沒報工。只列一般員工與組長。</p>
+          </div>
+          <div id="auResult"></div>
+        </div>
+
+        <!-- 每日站別回報 -->
+        <div id="pane-streport" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_streport">每日站別回報</h3>
+            <div class="row" style="align-items:center">
+              <input id="srDate" type="date" style="width:auto">
+              <select id="srStation" style="width:auto;min-width:170px"></select>
+              <button id="btnSrQuery" class="btn primary" data-i18n="query">查詢</button>
+              <button id="btnSrImg" class="btn ghost">📷 <span data-i18n="sr_export_img">匯出圖片</span></button>
+            </div>
+            <p class="muted" data-i18n="sr_hint" style="font-size:13px;margin:8px 0 0">選日期，當天有報工的站各產一張卡；「匯出圖片」把整份存成圖片，直接傳給主管。</p>
+          </div>
+          <div id="srCards"></div>
         </div>
 
         <!-- 工單指派 -->
@@ -709,18 +744,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=86"></script>
-  <script src="js/i18n.js?v=86"></script>
-  <script src="js/auth.js?v=86"></script>
-  <script src="js/report.js?v=86"></script>
-  <script src="js/incident.js?v=86"></script>
-  <script src="js/todo.js?v=86"></script>
-  <script src="js/home.js?v=86"></script>
-  <script src="js/score.js?v=86"></script>
-  <script src="js/admin.js?v=86"></script>
-  <script src="js/scoreplan.js?v=86"></script>
-  <script src="js/calendar.js?v=86"></script>
-  <script src="js/nav.js?v=86"></script>
-  <script src="js/notify.js?v=86"></script>
+  <script src="js/config.js?v=87"></script>
+  <script src="js/i18n.js?v=87"></script>
+  <script src="js/auth.js?v=87"></script>
+  <script src="js/report.js?v=87"></script>
+  <script src="js/incident.js?v=87"></script>
+  <script src="js/todo.js?v=87"></script>
+  <script src="js/home.js?v=87"></script>
+  <script src="js/score.js?v=87"></script>
+  <script src="js/admin.js?v=87"></script>
+  <script src="js/scoreplan.js?v=87"></script>
+  <script src="js/calendar.js?v=87"></script>
+  <script src="js/nav.js?v=87"></script>
+  <script src="js/notify.js?v=87"></script>
 </body>
 </html>

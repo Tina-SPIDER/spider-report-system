@@ -7,8 +7,8 @@ window.Admin = { tab: "dashboard" };
 // 員工也能「看」指派、紀錄、異常、四個看板——但只能看，操作按鈕不會出現。
 Admin.TABS = {
   "主管": null,   // null＝全部
-  "組長": ["dashboard", "machine", "progress", "load", "assign", "jobs", "incident", "scoreplan"],
-  "員工": ["dashboard", "machine", "progress", "load", "assign", "jobs", "incident"],
+  "組長": ["dashboard", "machine", "streport", "progress", "load", "assign", "jobs", "incident", "scoreplan"],
+  "員工": ["dashboard", "machine", "streport", "progress", "load", "assign", "jobs", "incident"],
 };
 Admin.canTab = function (tab) {
   if (!App.ME || !(App.ME.role in Admin.TABS)) return false;
@@ -42,6 +42,8 @@ Admin.render = function () {
   else if (Admin.tab === "overview") Admin.loadOverview();
   else if (Admin.tab === "load") Admin.initLoad();
   else if (Admin.tab === "ship") Admin.initShip();
+  else if (Admin.tab === "streport") Admin.initStReport();
+  else if (Admin.tab === "audit") Admin.initAudit();
   else if (Admin.tab === "grade") Admin.initGrade();
   else if (Admin.tab === "download") Admin.initDownload();
   else if (Admin.tab === "scoreplan") ScorePlan.render();
@@ -737,11 +739,13 @@ Admin.loadDashboard = async function () {
   const sel = "id,employee_id,status,work_minutes,qty,scrap_qty,start_at,paused_minutes,paused_at,work_order_no,station,machine,employees(name,team)";
 
   const [empRes, doneRes, actRes] = await Promise.all([
-    sb.from("employees").select("id,name,team").eq("active", true).in("role", ["員工", "組長"]).not("team", "is", null),
+    sb.from("employees").select("*").eq("active", true).in("role", ["員工", "組長"]).not("team", "is", null),
     sb.from("jobs").select(sel).eq("status", "done").gte("start_at", start.toISOString()).lt("start_at", end.toISOString()),
     sb.from("jobs").select(sel).in("status", ["running", "paused"]),
   ]);
   if (doneRes.error) return toast(t("err") + ": " + doneRes.error.message, "err");
+  // 免報工的人不列入「今日報工狀態」（他們沒報工不是異常）
+  if (empRes.data) empRes.data = empRes.data.filter((e) => !e.report_exempt);
 
   // 取進行中工單的客戶/品名
   const woNos = [...new Set((actRes.data || []).map((j) => j.work_order_no))];
@@ -1066,6 +1070,314 @@ Admin.exportJobs = async function () {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "報工紀錄");
   XLSX.writeFile(wb, `報工紀錄_${$("#jbFrom").value}_${$("#jbTo").value}.xlsx`);
   toast(t("export_ok", { n: rows.length }), "ok");
+};
+
+// ---------- 報工稽核（月報）：未滿N小時 / 疑似忘記按結束 / 該報工沒報工 ----------
+Admin.initAudit = function () {
+  if (!$("#auMonth").value) {
+    const n = new Date();
+    $("#auMonth").value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+  }
+  $("#btnAuQuery").onclick = Admin.loadAudit;
+  $("#btnAuExport").onclick = Admin.exportAudit;
+  $("#auEmp").onchange = Admin.renderAudit;
+  Admin.loadAudit();
+};
+
+// 目前畫面上要顯示的稽核內容（人員下拉選了誰就只看誰）；匯出也用同一份
+Admin.auditView = function () {
+  const a = Admin._audit;
+  if (!a) return null;
+  const pick = $("#auEmp") ? $("#auEmp").value : "";
+  if (!pick) return a;
+  return { ...a,
+    under: a.under.filter((r) => r.id === pick),
+    forgot: a.forgot.filter((r) => r.id === pick),
+    missing: a.missing.filter((r) => r.id === pick) };
+};
+
+Admin.loadAudit = async function () {
+  const m = $("#auMonth").value;
+  if (!m) return;
+  const thrMin = Math.max(1, Number($("#auHours").value) || 6) * 60;
+  const skipWknd = $("#auSkipSun").checked;   // 週末（六、日）不強制報工；來加班照報但不稽核
+  const isWknd = (d) => d.getDay() === 0 || d.getDay() === 6;
+  const from = new Date(m + "-01T00:00:00");
+  const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  const { data: empsAll, error: e1 } = await sb.from("employees")
+    .select("*").eq("active", true).in("role", ["員工", "組長"]).order("name");
+  if (e1) return toast(t("err") + ": " + e1.message, "err");
+  // 免報工的人整份稽核都不列（欄位還沒建時大家都算要報工）
+  const emps = (empsAll || []).filter((e) => !e.report_exempt);
+
+  // 該月所有報工，分頁抓完
+  const jobs = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await sb.from("jobs")
+      .select("employee_id,work_order_no,station,status,start_at,end_at,work_minutes")
+      .gte("start_at", from.toISOString()).lt("start_at", to.toISOString())
+      .order("start_at").range(off, off + 999);
+    if (error) return toast(t("err") + ": " + error.message, "err");
+    jobs.push(...(data || []));
+    if ((data || []).length < 1000) break;
+  }
+
+  const nameOf = {};
+  (emps || []).forEach((e) => (nameOf[e.id] = e));
+
+  // ① 每人每天已完成工時合計 → 低於門檻的列出來
+  const daily = new Map();
+  jobs.forEach((j) => {
+    if (j.status !== "done" || j.work_minutes == null) return;
+    const k = j.employee_id + "|" + fmtDate(j.start_at);
+    daily.set(k, (daily.get(k) || 0) + Number(j.work_minutes));
+  });
+  const under = [];
+  daily.forEach((min, k) => {
+    if (min >= thrMin) return;
+    const [id, day] = k.split("|");
+    if (!nameOf[id]) return;
+    // 週末來加班是多做的，做多做少都不列入「未滿門檻」
+    if (skipWknd && isWknd(new Date(day + "T00:00:00"))) return;
+    under.push({ id, name: nameOf[id].name, team: nameOf[id].team || "", day, min: Math.round(min) });
+  });
+  under.sort((a, b) => a.day.localeCompare(b.day) || a.name.localeCompare(b.name));
+
+  // ② 疑似忘記按結束／暫停：跨日才結束、單筆超過12小時、或到現在還掛著
+  const forgot = [];
+  jobs.forEach((j) => {
+    const info = nameOf[j.employee_id];
+    if (!info) return;
+    const st = new Date(j.start_at);
+    if (j.status !== "done") {
+      if (fmtDate(st) < fmtDate(new Date())) {
+        forgot.push({ id: j.employee_id, name: info.name, team: info.team || "", day: fmtDate(st), wo: j.work_order_no, station: j.station || "",
+          kind: t("au_kind_open"), hrs: Math.round((Date.now() - st) / 360000) / 10 });
+      }
+      return;
+    }
+    if (!j.end_at) return;
+    const en = new Date(j.end_at);
+    const span = (en - st) / 3600000;
+    if (fmtDate(st) !== fmtDate(en) || span > 12) {
+      forgot.push({ id: j.employee_id, name: info.name, team: info.team || "", day: fmtDate(st), wo: j.work_order_no, station: j.station || "",
+        kind: fmtDate(st) !== fmtDate(en) ? t("au_kind_overnight") : t("au_kind_long"), hrs: Math.round(span * 10) / 10 });
+    }
+  });
+  forgot.sort((a, b) => a.day.localeCompare(b.day) || a.name.localeCompare(b.name));
+
+  // ③ 應報工卻整天沒報工（連進行中都沒有）：只看已過去的工作日
+  const hasAny = new Set(jobs.map((j) => j.employee_id + "|" + fmtDate(j.start_at)));
+  const missing = [];
+  (emps || []).forEach((e) => {
+    const days = [];
+    for (let d = new Date(from); d < to && d < today; d.setDate(d.getDate() + 1)) {
+      if (skipWknd && isWknd(d)) continue;
+      if (!hasAny.has(e.id + "|" + fmtDate(d))) days.push(fmtDate(d).slice(5));
+    }
+    if (days.length) missing.push({ id: e.id, name: e.name, team: e.team || "", n: days.length, days });
+  });
+  missing.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+
+  Admin._audit = { month: m, thrH: thrMin / 60, under, forgot, missing };
+
+  // 人員下拉（保留原本選的人）
+  const sel = $("#auEmp");
+  const keep = sel.value;
+  sel.innerHTML = `<option value="">${t("au_all_emp")}</option>` +
+    emps.map((e) => `<option value="${e.id}">${e.name}${e.team ? "（" + e.team + "）" : ""}</option>`).join("");
+  if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+
+  Admin.renderAudit();
+};
+
+Admin.renderAudit = function () {
+  const a = Admin.auditView();
+  if (!a) return;
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const none = `<p class="muted" style="margin:0">${t("au_none")}</p>`;
+
+  const t1 = a.under.length ? `<div style="overflow-x:auto"><table>
+    <tr><th>${t("date")}</th><th>${t("name")}</th><th>${t("team")}</th><th class="r">${t("au_day_min")}</th></tr>
+    ${a.under.map((r) => `<tr><td>${r.day}</td><td>${esc(r.name)}</td><td>${esc(r.team)}</td>
+      <td class="r"><strong class="${r.min < a.thrH * 30 ? "y-bad" : "y-warn"}">${r.min}</strong>（${Math.round(r.min / 6) / 10} ${t("au_h")}）</td></tr>`).join("")}
+  </table></div>` : none;
+
+  const t2 = a.forgot.length ? `<div style="overflow-x:auto"><table>
+    <tr><th>${t("date")}</th><th>${t("name")}</th><th>${t("team")}</th><th>${t("wo_no")}</th><th>${t("station")}</th><th>${t("au_kind")}</th><th class="r">${t("au_hrs")}</th></tr>
+    ${a.forgot.map((r) => `<tr><td>${r.day}</td><td>${esc(r.name)}</td><td>${esc(r.team)}</td><td>${esc(r.wo)}</td><td>${esc(r.station)}</td>
+      <td>${r.kind}</td><td class="r y-bad"><strong>${r.hrs}</strong></td></tr>`).join("")}
+  </table></div>` : none;
+
+  const t3 = a.missing.length ? `<div style="overflow-x:auto"><table>
+    <tr><th>${t("name")}</th><th>${t("team")}</th><th class="r">${t("au_n_days")}</th><th>${t("au_days")}</th></tr>
+    ${a.missing.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.team)}</td>
+      <td class="r"><strong class="${r.n >= 5 ? "y-bad" : "y-warn"}">${r.n}</strong></td>
+      <td style="white-space:normal">${r.days.join("、")}</td></tr>`).join("")}
+  </table></div>` : none;
+
+  $("#auResult").innerHTML = `
+    <div class="card"><h3>${t("au_s1", { h: a.thrH })} <small class="muted">${a.under.length}</small></h3>${t1}</div>
+    <div class="card"><h3>${t("au_s2")} <small class="muted">${a.forgot.length}</small></h3>${t2}
+      <p class="muted" style="font-size:13px;margin:8px 0 0">${t("au_s2_hint")}</p></div>
+    <div class="card"><h3>${t("au_s3")} <small class="muted">${a.missing.length}</small></h3>${t3}</div>`;
+};
+
+Admin.exportAudit = function () {
+  const a = Admin.auditView();   // 選了單人就只匯出那個人
+  if (!a || (!a.under.length && !a.forgot.length && !a.missing.length)) return toast(t("no_data"), "err");
+  const wb = XLSX.utils.book_new();
+  const s1 = [[t("date"), t("name"), t("team"), t("au_day_min")]];
+  a.under.forEach((r) => s1.push([r.day, r.name, r.team, r.min]));
+  const s2 = [[t("date"), t("name"), t("team"), t("wo_no"), t("station"), t("au_kind"), t("au_hrs")]];
+  a.forgot.forEach((r) => s2.push([r.day, r.name, r.team, r.wo, r.station, r.kind, r.hrs]));
+  const s3 = [[t("name"), t("team"), t("au_n_days"), t("au_days")]];
+  a.missing.forEach((r) => s3.push([r.name, r.team, r.n, r.days.join("、")]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s1), "未滿門檻");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s2), "疑似忘記按結束");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s3), "沒報工");
+  XLSX.writeFile(wb, `報工稽核_${a.month}.xlsx`);
+  toast(t("ok"), "ok");
+};
+
+// ---------- 每日站別回報：一天 × 一站 = 一張卡，可匯出圖片傳主管 ----------
+Admin.initStReport = function () {
+  if (!$("#srDate").value) $("#srDate").value = fmtDate(new Date());
+  $("#srDate").onchange = Admin.loadStReport;
+  $("#btnSrQuery").onclick = Admin.loadStReport;
+  $("#srStation").onchange = Admin.renderStReport;
+  $("#btnSrImg").onclick = Admin.exportStImg;
+  Admin.loadStReport();
+};
+
+Admin.loadStReport = async function () {
+  const day = $("#srDate").value;
+  if (!day) return;
+  const next = new Date(day + "T00:00:00"); next.setDate(next.getDate() + 1);
+  const { data, error } = await sb.from("jobs")
+    .select("work_order_no,station,start_at,end_at,work_minutes,qty,scrap_qty,employees(name)")
+    .eq("status", "done")
+    .gte("start_at", day + "T00:00:00").lt("start_at", next.toISOString())
+    .limit(3000);
+  if (error) return toast(t("err") + ": " + error.message, "err");
+  const jobs = data || [];
+
+  // 品名要回 work_orders 查（分批避免網址過長）
+  const nos = [...new Set(jobs.map((j) => j.work_order_no).filter(Boolean))];
+  const woMap = {};
+  for (let i = 0; i < nos.length; i += 100) {
+    const { data: wos } = await sb.from("work_orders")
+      .select("work_order_no,product_name").in("work_order_no", nos.slice(i, i + 100));
+    (wos || []).forEach((w) => (woMap[w.work_order_no] = w.product_name || ""));
+  }
+
+  // 站 → 工單 彙總（同單同站當天多筆報工加總）
+  const stMap = new Map();
+  jobs.forEach((j) => {
+    const st = j.station || t("unspecified");
+    if (!stMap.has(st)) stMap.set(st, new Map());
+    const wm = stMap.get(st);
+    if (!wm.has(j.work_order_no)) {
+      wm.set(j.work_order_no, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0 });
+    }
+    const x = wm.get(j.work_order_no);
+    if (j.employees && j.employees.name) x.makers.add(j.employees.name);
+    // 生產時間＝開始到結束（含暫停）；沒有結束時間就退回實際工時
+    const wall = (j.start_at && j.end_at)
+      ? Math.round((new Date(j.end_at) - new Date(j.start_at)) / 60000)
+      : Math.round(Number(j.work_minutes) || 0);
+    x.prod += Math.max(0, wall);
+    x.mach += Math.round(Number(j.work_minutes) || 0);
+    x.qty += Number(j.qty) || 0;
+    x.scrap += Number(j.scrap_qty) || 0;
+  });
+  Admin._srData = [...stMap.entries()]
+    .map(([station, wm]) => ({ station, rows: [...wm.values()].sort((a, b) => b.qty - a.qty) }))
+    .sort((a, b) => b.rows.reduce((s, r) => s + r.mach, 0) - a.rows.reduce((s, r) => s + r.mach, 0));
+
+  const sel = $("#srStation");
+  const keep = sel.value;
+  sel.innerHTML = `<option value="">${t("sr_all", { n: Admin._srData.length })}</option>` +
+    Admin._srData.map((g) => {
+      const v = String(g.station).replace(/"/g, "&quot;");
+      return `<option value="${v}">${g.station}</option>`;
+    }).join("");
+  if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+  Admin.renderStReport();
+};
+
+Admin.renderStReport = function () {
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const day = $("#srDate").value;
+  const pick = $("#srStation").value;
+  const groups = (Admin._srData || []).filter((g) => !pick || g.station === pick);
+  const box = $("#srCards");
+  if (!groups.length) { box.innerHTML = `<div class="card"><p class="muted">${t("sr_no_data")}</p></div>`; return; }
+
+  const wd = t("wd" + new Date(day + "T00:00:00").getDay());
+  const yieldCell = (qty, scrap) => {
+    const tot = qty + scrap;
+    if (!tot) return `<span class="muted">—</span>`;
+    const p = qty / tot * 100;
+    const cls = p >= 95 ? "y-ok" : (p >= 85 ? "y-warn" : "y-bad");
+    return `<strong class="${cls}">${(Math.round(p * 10) / 10)}%</strong>`;
+  };
+
+  box.innerHTML = groups.map((g) => {
+    const sum = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
+      { prod: 0, mach: 0, qty: 0, scrap: 0 });
+    const maxQty = Math.max(1, ...g.rows.map((r) => r.qty));
+    const body = g.rows.map((r) => `<tr>
+      <td>${esc(r.wo)}</td>
+      <td>${esc(r.name)}<div class="sr-bar" style="width:${Math.max(4, Math.round(r.qty / maxQty * 100))}%"></div></td>
+      <td>${esc([...r.makers].join("、"))}</td>
+      <td class="r">${r.prod}</td><td class="r">${r.mach}</td>
+      <td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
+      <td class="r">${yieldCell(r.qty, r.scrap)}</td></tr>`).join("");
+    return `<div class="sr-card">
+      <div class="sr-head">
+        <span class="nm">🔧 ${esc(g.station)}</span>
+        <span class="dt">${day}（${wd}）｜${t("sr_title_line")}</span>
+      </div>
+      <div class="sr-sums">
+        <span class="s">${t("sr_prod")}　<b>${sum.qty}</b> ${t("sr_pcs")}</span>
+        <span class="s">${t("sr_bad")}　<b${sum.scrap ? ' style="color:#f87171"' : ""}>${sum.scrap}</b> ${t("sr_pcs")}</span>
+        <span class="s">${t("sr_prod_time")}　<b>${sum.prod}</b> ${t("sr_min")}</span>
+        <span class="s">${t("sr_mach_time")}　<b>${sum.mach}</b> ${t("sr_min")}</span>
+        <span class="s">${t("sr_yield")}　${yieldCell(sum.qty, sum.scrap)}</span>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <tr><th>${t("wo_no")}</th><th>${t("product")}</th><th>${t("sr_col_maker")}</th>
+          <th class="r">${t("sr_col_prod_time")}</th><th class="r">${t("sr_col_mach_time")}</th>
+          <th class="r">${t("sr_col_qty")}</th><th class="r">${t("sr_col_bad")}</th><th class="r">${t("sr_col_yield")}</th></tr>
+        ${body}
+      </table></div>
+      <p class="sr-foot">${t("sr_foot")}</p>
+    </div>`;
+  }).join("");
+};
+
+// 匯出圖片：html2canvas 用到才載入（jsdelivr，跟 xlsx 同一個 CDN）
+Admin.exportStImg = async function () {
+  const box = $("#srCards");
+  if (!box || !box.querySelector(".sr-card")) return toast(t("no_data"), "err");
+  if (!window.html2canvas) {
+    await new Promise((res) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
+      s.onload = res; s.onerror = res;
+      document.head.appendChild(s);
+    });
+  }
+  if (!window.html2canvas) return toast(t("err"), "err");
+  const canvas = await html2canvas(box, { backgroundColor: "#0b1220", scale: 2 });
+  const a = document.createElement("a");
+  a.download = `站別回報_${$("#srDate").value}.png`;
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+  toast(t("ok"), "ok");
 };
 
 // ---------- 員工待辦（主管檢視） ----------
@@ -1576,6 +1888,7 @@ Admin.loadEmployees = async function () {
   const rows = data || [];
   const head = `<tr><th>${t("emp_account")}</th><th>${t("name")}</th><th>${t("team")}</th>
     <th>${t("role")}</th><th>${t("lang")}</th><th class="r">${t("home_target")}</th>
+    <th title="${t("emp_exempt_tip")}">${t("emp_exempt")}</th>
     <th>${t("active")}</th><th>${t("actions")}</th></tr>`;
   const body = rows.map((e) => `
     <tr data-id="${e.id}">
@@ -1594,6 +1907,7 @@ Admin.loadEmployees = async function () {
       <td class="r"><input type="number" class="cell r" style="max-width:80px" min="0" step="1"
         data-target="${e.id}" value="${Home.targets.get(e.id) != null ? Home.targets.get(e.id) : ""}"
         title="${t("home_target_tip")}"></td>
+      <td style="text-align:center"><input type="checkbox" data-f="report_exempt" ${e.report_exempt ? "checked" : ""} title="${t("emp_exempt_tip")}"></td>
       <td style="text-align:center"><input type="checkbox" data-f="active" ${e.active ? "checked" : ""}></td>
       <td><button class="btn small ghost" data-pw="${e.id}">${t("reset_pw")}</button></td>
     </tr>`).join("");

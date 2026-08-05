@@ -28,6 +28,7 @@ Nav.GROUPS = [
   { key: "watch", icon: "📊", label: "grp_watch", items: [
     { view: "admin", atab: "dashboard", label: "admin_dash" },
     { view: "admin", atab: "machine", label: "machine_usage" },
+    { view: "admin", atab: "streport", label: "admin_streport" },
     { view: "admin", atab: "progress", label: "admin_progress" },
     { view: "admin", atab: "load", label: "admin_load" },
   ] },
@@ -35,6 +36,7 @@ Nav.GROUPS = [
     { view: "score", label: "nav_score" },
     { view: "team", label: "nav_team" },
     { view: "admin", atab: "overview", label: "admin_overview", roles: ["主管"] },
+    { view: "admin", atab: "audit", label: "admin_audit", roles: ["主管"] },
   ] },
 ];
 
