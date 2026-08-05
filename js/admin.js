@@ -1275,6 +1275,7 @@ Admin.initStReport = function () {
   if (!$("#srDate").value) $("#srDate").value = fmtDate(new Date());
   $("#srDate").onchange = Admin.loadStReport;
   $("#btnSrQuery").onclick = Admin.loadStReport;
+  $("#srView").onchange = Admin.buildStReport;
   $("#srStation").onchange = Admin.renderStReport;
   $("#btnSrImg").onclick = Admin.exportStImg;
   Admin.loadStReport();
@@ -1285,7 +1286,7 @@ Admin.loadStReport = async function () {
   if (!day) return;
   const next = new Date(day + "T00:00:00"); next.setDate(next.getDate() + 1);
   const { data, error } = await sb.from("jobs")
-    .select("work_order_no,station,start_at,end_at,work_minutes,qty,scrap_qty,employees(name)")
+    .select("work_order_no,station,machine,start_at,end_at,work_minutes,qty,scrap_qty,employees(name)")
     .eq("status", "done")
     .gte("start_at", day + "T00:00:00").lt("start_at", next.toISOString())
     .limit(3000);
@@ -1301,17 +1302,31 @@ Admin.loadStReport = async function () {
     (wos || []).forEach((w) => (woMap[w.work_order_no] = w.product_name || ""));
   }
 
-  // 站 → 工單 彙總（同單同站當天多筆報工加總）
-  const stMap = new Map();
+  Admin._srJobs = jobs;
+  Admin._srWoMap = woMap;
+  Admin.buildStReport();
+};
+
+// 依「站別／機台／員工」視角彙總；切視角不用重新查資料庫
+Admin.buildStReport = function () {
+  const mode = $("#srView").value;
+  const byMach = mode === "machine", byEmp = mode === "emp";
+  const jobs = Admin._srJobs || [];
+  const woMap = Admin._srWoMap || {};
+  const gMap = new Map();
   jobs.forEach((j) => {
-    const st = j.station || t("unspecified");
-    if (!stMap.has(st)) stMap.set(st, new Map());
-    const wm = stMap.get(st);
-    if (!wm.has(j.work_order_no)) {
-      wm.set(j.work_order_no, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0 });
+    const key = (byEmp ? (j.employees && j.employees.name)
+      : byMach ? j.machine : j.station) || t("unspecified");
+    if (!gMap.has(key)) gMap.set(key, new Map());
+    const wm = gMap.get(key);
+    // 機台／員工視角：同一張單的不同站要分列，所以子鍵帶站別
+    const sub = (byMach || byEmp) ? j.work_order_no + "|" + (j.station || "") : j.work_order_no;
+    if (!wm.has(sub)) {
+      wm.set(sub, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", st: j.station || "", machs: new Set(), makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0 });
     }
-    const x = wm.get(j.work_order_no);
+    const x = wm.get(sub);
     if (j.employees && j.employees.name) x.makers.add(j.employees.name);
+    if (j.machine) x.machs.add(j.machine);
     // 生產時間＝開始到結束（含暫停）；沒有結束時間就退回實際工時
     const wall = (j.start_at && j.end_at)
       ? Math.round((new Date(j.end_at) - new Date(j.start_at)) / 60000)
@@ -1321,13 +1336,13 @@ Admin.loadStReport = async function () {
     x.qty += Number(j.qty) || 0;
     x.scrap += Number(j.scrap_qty) || 0;
   });
-  Admin._srData = [...stMap.entries()]
+  Admin._srData = [...gMap.entries()]
     .map(([station, wm]) => ({ station, rows: [...wm.values()].sort((a, b) => b.qty - a.qty) }))
     .sort((a, b) => b.rows.reduce((s, r) => s + r.mach, 0) - a.rows.reduce((s, r) => s + r.mach, 0));
 
   const sel = $("#srStation");
   const keep = sel.value;
-  sel.innerHTML = `<option value="">${t("sr_all", { n: Admin._srData.length })}</option>` +
+  sel.innerHTML = `<option value="">${t(byEmp ? "sr_all_e" : byMach ? "sr_all_m" : "sr_all", { n: Admin._srData.length })}</option>` +
     Admin._srData.map((g) => {
       const v = String(g.station).replace(/"/g, "&quot;");
       return `<option value="${v}">${g.station}</option>`;
@@ -1357,16 +1372,19 @@ Admin.renderStReport = function () {
     const sum = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
       { prod: 0, mach: 0, qty: 0, scrap: 0 });
     const maxQty = Math.max(1, ...g.rows.map((r) => r.qty));
+    const mode = $("#srView").value;
+    const byMach = mode === "machine", byEmp = mode === "emp";
     const body = g.rows.map((r) => `<tr>
       <td>${esc(r.wo)}</td>
       <td>${esc(r.name)}<div class="sr-bar" style="width:${Math.max(4, Math.round(r.qty / maxQty * 100))}%"></div></td>
-      <td>${esc([...r.makers].join("、"))}</td>
+      ${(byMach || byEmp) ? `<td>${esc(r.st)}</td>` : ""}
+      ${byEmp ? `<td>${esc([...r.machs].join("、"))}</td>` : `<td>${esc([...r.makers].join("、"))}</td>`}
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td>
       <td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
       <td class="r">${yieldCell(r.qty, r.scrap)}</td></tr>`).join("");
     return `<div class="sr-card">
       <div class="sr-head">
-        <span class="nm">🔧 ${esc(g.station)}</span>
+        <span class="nm">${byEmp ? "👷" : byMach ? "🖥" : "🔧"} ${esc(g.station)}</span>
         <span class="dt">${day}（${wd}）｜${t("sr_title_line")}</span>
       </div>
       <div class="sr-sums">
@@ -1377,7 +1395,7 @@ Admin.renderStReport = function () {
         <span class="s">${t("sr_yield")}　${yieldCell(sum.qty, sum.scrap)}</span>
       </div>
       <div style="overflow-x:auto"><table>
-        <tr><th>${t("wo_no")}</th><th>${t("product")}</th><th>${t("sr_col_maker")}</th>
+        <tr><th>${t("wo_no")}</th><th>${t("product")}</th>${(byMach || byEmp) ? `<th>${t("station")}</th>` : ""}<th>${byEmp ? t("machine") : t("sr_col_maker")}</th>
           <th class="r">${t("sr_col_prod_time")}</th><th class="r">${t("sr_col_mach_time")}</th>
           <th class="r">${t("sr_col_qty")}</th><th class="r">${t("sr_col_bad")}</th><th class="r">${t("sr_col_yield")}</th></tr>
         ${body}
