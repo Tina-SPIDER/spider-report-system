@@ -101,6 +101,7 @@ window.I18N = {
     au_kind_open: "還掛著未結束", au_kind_overnight: "跨日才結束", au_kind_long: "單筆超過12小時",
     au_hrs: "時數(小時)", au_n_days: "天數", au_days: "沒報工的日期", au_none: "🎉 沒有異常",
     au_all_emp: "全部人員",
+    pz_reason: "原因", pz_start: "暫停開始", pz_resume: "恢復時間", pz_min: "暫停(分)",
 
     todo_ph: "輸入待辦事項…", todo_empty: "目前沒有待辦事項", admin_todos: "員工待辦",
     priority: "優先", completion: "平均完成度", progress_col: "完成%", todo_due: "預計完成日",
@@ -342,6 +343,7 @@ window.I18N = {
     au_kind_open: "Đang treo chưa kết thúc", au_kind_overnight: "Qua ngày mới kết thúc", au_kind_long: "Một lần quá 12 giờ",
     au_hrs: "Số giờ", au_n_days: "Số ngày", au_days: "Ngày không báo công", au_none: "🎉 Không có bất thường",
     au_all_emp: "Tất cả nhân viên",
+    pz_reason: "Lý do", pz_start: "Bắt đầu dừng", pz_resume: "Tiếp tục lúc", pz_min: "Dừng (phút)",
 
     todo_ph: "Nhập việc cần làm…", todo_empty: "Chưa có việc cần làm", admin_todos: "Việc của NV",
     priority: "Ưu tiên", completion: "Hoàn thành TB", progress_col: "Hoàn thành%", todo_due: "Ngày dự kiến",

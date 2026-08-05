@@ -1052,6 +1052,16 @@ Admin.exportJobs = async function () {
     (wos || []).forEach((w) => (woNames[w.work_order_no] = w.product_name || ""));
   }
 
+  // 暫停明細另做一張工作表：每次暫停的原因、開始／恢復時間、停多久
+  const pauses = [];
+  const jobIds = rows.map((j) => j.id);
+  for (let i = 0; i < jobIds.length; i += 100) {
+    const { data: ps } = await sb.from("job_pauses")
+      .select("job_id,reason,created_at,resumed_at")
+      .in("job_id", jobIds.slice(i, i + 100)).order("created_at");
+    pauses.push(...(ps || []));
+  }
+
   const stMap = { running: t("status_running"), paused: t("status_paused"), done: t("status_done") };
   const aoa = [[t("name"), t("team"), t("wo_no"), t("product"), t("station"), t("machine"), t("work_content"),
     t("jb_start_d"), t("jb_start_t"), t("jb_end_d"), t("jb_end_t"),
@@ -1068,6 +1078,24 @@ Admin.exportJobs = async function () {
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "報工紀錄");
+
+  if (pauses.length) {
+    const byId = {};
+    rows.forEach((j) => (byId[j.id] = j));
+    const pa = [[t("date"), t("name"), t("team"), t("wo_no"), t("station"), t("pz_reason"),
+      t("pz_start"), t("pz_resume"), t("pz_min")]];
+    pauses.forEach((p) => {
+      const j = byId[p.job_id];
+      if (!j) return;
+      const e = j.employees || {};
+      // 恢復時間是 v87 之後才開始記；舊資料沒有就留空
+      const min = p.resumed_at ? Math.round((new Date(p.resumed_at) - new Date(p.created_at)) / 6000) / 10 : "";
+      pa.push([fmtDate(p.created_at), e.name || "", e.team || "", j.work_order_no, j.station || "",
+        p.reason || "", fmtTime(p.created_at), p.resumed_at ? fmtTime(p.resumed_at) : "", min]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pa), "暫停明細");
+  }
+
   XLSX.writeFile(wb, `報工紀錄_${$("#jbFrom").value}_${$("#jbTo").value}.xlsx`);
   toast(t("export_ok", { n: rows.length }), "ok");
 };
