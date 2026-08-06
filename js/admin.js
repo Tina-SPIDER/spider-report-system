@@ -1457,28 +1457,40 @@ Admin.exportStExcel = function () {
   toast(t("ok"), "ok");
 };
 
-// A4 列印：一台機一頁的白底正式報表（Tina 核可的版面），開新視窗直接印或存 PDF
+// A4 列印：白底正式報表，一組一頁——跟著目前選的視角走（站別／機台／員工）
 Admin.buildStA4Html = function () {
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const day = $("#srDate").value;
   const wd = t("wd" + new Date(day + "T00:00:00").getDay());
-  const groups = Admin.srAggregate("machine");
+  const mode = $("#srView").value;
+  const byMach = mode === "machine", byEmp = mode === "emp";
+  const title = byEmp ? "每日員工生產回報" : byMach ? "每日機台生產回報" : "每日站別生產回報";
+  const icon = byEmp ? "👷" : byMach ? "🖥" : "🔧";
+  const groups = Admin.srAggregate(mode);
   if (!groups.length) return null;
   const pct = (q, s) => (q + s) ? Math.round(q / (q + s) * 1000) / 10 + "%" : "—";
   const cls = (q, s) => { if (!(q + s)) return ""; const p = q / (q + s) * 100; return p >= 95 ? "g" : (p >= 85 ? "y" : "b"); };
   const now = new Date();
   const stamp = `${fmtDate(now)} ${fmtTime(now)}`;
 
+  // 中間那欄依視角換：站別視角＝製作者；機台視角＝工序站＋製作者；員工視角＝工序站＋使用機台
+  const midHead = (byMach || byEmp ? `<th>工序站</th>` : "") + `<th>${byEmp ? "使用機台" : "製作者"}</th>`;
+
   const pages = groups.map((g, i) => {
     const s = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
       { prod: 0, mach: 0, qty: 0, scrap: 0 });
-    const body = g.rows.map((r) => `<tr><td>${esc(r.wo)}</td><td>${esc(r.name)}</td><td>${esc(r.st)}</td><td>${esc([...r.makers].join("、"))}</td>
+    const body = g.rows.map((r) => `<tr><td>${esc(r.wo)}</td><td>${esc(r.name)}</td>
+      ${byMach || byEmp ? `<td>${esc(r.st)}</td>` : ""}
+      <td>${esc(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"))}</td>
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td><td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
       <td class="r ${cls(r.qty, r.scrap)}">${pct(r.qty, r.scrap)}</td></tr>`).join("");
-    return `<div class="page">
-      <div class="hd"><h1>每日機台生產回報</h1><span class="co">通產工業股份有限公司</span></div>
+    // 一組保證一頁：明細列多就自動縮小字體，不讓內容溢到第二頁
+    const n = g.rows.length;
+    const fit = n > 34 ? " c3" : n > 26 ? " c2" : n > 16 ? " c1" : "";
+    return `<div class="page${fit}">
+      <div class="hd"><h1>${title}</h1><span class="co">通產工業有限公司</span></div>
       <div class="sub"><span>日期：<b>${day}（${wd}）</b></span><span>頁次：${i + 1} / ${groups.length}</span></div>
-      <div class="machine">🖥 ${esc(g.station)}</div>
+      <div class="machine">${icon} ${esc(g.station)}</div>
       <div class="sums">
         <div class="s"><div class="v">${s.qty}</div><div class="l">產出（顆）</div></div>
         <div class="s"><div class="v ${s.scrap ? "b" : ""}">${s.scrap}</div><div class="l">不良（顆）</div></div>
@@ -1487,11 +1499,9 @@ Admin.buildStA4Html = function () {
         <div class="s"><div class="v ${cls(s.qty, s.scrap)}">${pct(s.qty, s.scrap)}</div><div class="l">平均良率</div></div>
       </div>
       <table>
-        <tr><th>工單號碼</th><th>品名</th><th>工序站</th><th>製作者</th>
+        <tr><th>工單號碼</th><th>品名</th>${midHead}
           <th class="r">生產時間(分)</th><th class="r">機台時間(分)</th><th class="r">產出</th><th class="r">不良</th><th class="r">良率</th></tr>
         ${body}
-        <tr class="totrow"><td colspan="4">合計</td><td class="r">${s.prod}</td><td class="r">${s.mach}</td>
-          <td class="r">${s.qty}</td><td class="r">${s.scrap}</td><td class="r">${pct(s.qty, s.scrap)}</td></tr>
       </table>
       <div class="foot">
         <div class="defs">生產時間＝開始到結束（含暫停）；機台時間＝實際運轉（扣掉暫停）。良率＝良品 ÷（良品＋報廢）。<br>
@@ -1501,7 +1511,7 @@ Admin.buildStA4Html = function () {
     </div>`;
   }).join("");
 
-  return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>每日機台生產回報 ${day}</title><style>
+  return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>${title} ${day}</title><style>
     :root{--ink:#111;--muted:#666;--line:#ccc}
     *{box-sizing:border-box;margin:0}
     body{background:#fff;color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei",sans-serif}
@@ -1519,11 +1529,28 @@ Admin.buildStA4Html = function () {
     td{border:1px solid #ccc;padding:6px}
     .r{text-align:right}
     .g{color:#0a7c0a;font-weight:700}.y{color:#b07800;font-weight:700}.b{color:#c02626;font-weight:700}
-    .totrow td{background:#f5f7fa;font-weight:800}
     .foot{margin-top:auto}
     .defs{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:14px}
     .signs{display:flex;gap:30px;margin-top:26px;font-size:14px}
     .signs .sg{flex:1;border-top:1px solid var(--ink);padding-top:6px;text-align:center;color:var(--muted)}
+    /* 明細多時的縮小版：一組永遠一頁 */
+    .page{page-break-inside:avoid}
+    .page.c1 table{font-size:12px}   .page.c1 td,.page.c1 th{padding:4px 5px}
+    .page.c1 .signs{margin-top:16px}
+    .page.c2 table{font-size:10.5px} .page.c2 td,.page.c2 th{padding:2.5px 4px}
+    .page.c2 .machine{font-size:20px;margin-bottom:6px}
+    .page.c2 .sums .v{font-size:18px} .page.c2 .sums .s{padding:5px 3px}
+    .page.c2 .signs{margin-top:12px} .page.c2 .defs{margin-top:8px}
+    .page.c3 table{font-size:9px}    .page.c3 td,.page.c3 th{padding:2px 3px}
+    .page.c3 .machine{font-size:18px;margin-bottom:4px}
+    .page.c3 .sums .v{font-size:16px} .page.c3 .sums .s{padding:4px 2px}
+    .page.c3 .signs{margin-top:10px}  .page.c3 .defs{margin-top:6px}
+    /* 列印：邊界歸零、每頁鎖死 A4 高度，頁尾簽名不會被擠到下一頁 */
+    @media print{
+      @page{size:A4;margin:0}
+      body{margin:0}
+      .page{height:296mm;overflow:hidden}
+    }
   </style></head><body>${pages}</body></html>`;
 };
 
