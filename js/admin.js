@@ -1278,6 +1278,8 @@ Admin.initStReport = function () {
   $("#srView").onchange = Admin.buildStReport;
   $("#srStation").onchange = Admin.renderStReport;
   $("#btnSrImg").onclick = Admin.exportStImg;
+  $("#btnSrXls").onclick = Admin.exportStExcel;
+  $("#btnSrA4").onclick = Admin.printStA4;
   Admin.loadStReport();
 };
 
@@ -1307,9 +1309,8 @@ Admin.loadStReport = async function () {
   Admin.buildStReport();
 };
 
-// 依「站別／機台／員工」視角彙總；切視角不用重新查資料庫
-Admin.buildStReport = function () {
-  const mode = $("#srView").value;
+// 依指定視角把當天報工彙總成群組（畫面與匯出共用）
+Admin.srAggregate = function (mode) {
   const byMach = mode === "machine", byEmp = mode === "emp";
   const jobs = Admin._srJobs || [];
   const woMap = Admin._srWoMap || {};
@@ -1336,9 +1337,16 @@ Admin.buildStReport = function () {
     x.qty += Number(j.qty) || 0;
     x.scrap += Number(j.scrap_qty) || 0;
   });
-  Admin._srData = [...gMap.entries()]
+  return [...gMap.entries()]
     .map(([station, wm]) => ({ station, rows: [...wm.values()].sort((a, b) => b.qty - a.qty) }))
     .sort((a, b) => b.rows.reduce((s, r) => s + r.mach, 0) - a.rows.reduce((s, r) => s + r.mach, 0));
+};
+
+// 畫面：依目前選的視角重建卡片與篩選下拉（切視角不用重新查資料庫）
+Admin.buildStReport = function () {
+  const mode = $("#srView").value;
+  const byMach = mode === "machine", byEmp = mode === "emp";
+  Admin._srData = Admin.srAggregate(mode);
 
   const sel = $("#srStation");
   const keep = sel.value;
@@ -1403,6 +1411,131 @@ Admin.renderStReport = function () {
       <p class="sr-foot">${t("sr_foot")}</p>
     </div>`;
   }).join("");
+};
+
+// 匯出 Excel：一天一個檔，站別／機台／員工三種視角一次包進去
+// （每視角兩張工作表：總表＝一組一列、明細＝完整攤平），共六張。
+Admin.exportStExcel = function () {
+  const day = $("#srDate").value;
+  const pct = (qty, scrap) => (qty + scrap) ? Math.round(qty / (qty + scrap) * 1000) / 10 : "";
+  const wb = XLSX.utils.book_new();
+  let any = false;
+
+  [["station", "站別"], ["machine", "機台"], ["emp", "員工"]].forEach(([mode, tag]) => {
+    const byMach = mode === "machine", byEmp = mode === "emp";
+    const groups = Admin.srAggregate(mode);
+    if (!groups.length) return;
+    any = true;
+    const gLabel = byEmp ? t("name") : byMach ? t("machine") : t("station");
+
+    const sum1 = [[gLabel, t("sr_col_qty"), t("sr_col_bad"), t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_yield") + "(%)"]];
+    groups.forEach((g) => {
+      const s = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
+        { prod: 0, mach: 0, qty: 0, scrap: 0 });
+      sum1.push([g.station, s.qty, s.scrap, s.prod, s.mach, pct(s.qty, s.scrap)]);
+    });
+
+    const head2 = [gLabel, t("wo_no"), t("product")];
+    if (byMach || byEmp) head2.push(t("station"));
+    head2.push(byEmp ? t("machine") : t("sr_col_maker"));
+    head2.push(t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_qty"), t("sr_col_bad"), t("sr_col_yield") + "(%)");
+    const det = [head2];
+    groups.forEach((g) => g.rows.forEach((r) => {
+      const row = [g.station, r.wo, r.name];
+      if (byMach || byEmp) row.push(r.st);
+      row.push(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"));
+      row.push(r.prod, r.mach, r.qty, r.scrap || 0, pct(r.qty, r.scrap));
+      det.push(row);
+    }));
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum1), `${tag}總表`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(det), `${tag}明細`);
+  });
+
+  if (!any) return toast(t("no_data"), "err");
+  XLSX.writeFile(wb, `每日生產回報_${day}.xlsx`);
+  toast(t("ok"), "ok");
+};
+
+// A4 列印：一台機一頁的白底正式報表（Tina 核可的版面），開新視窗直接印或存 PDF
+Admin.buildStA4Html = function () {
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const day = $("#srDate").value;
+  const wd = t("wd" + new Date(day + "T00:00:00").getDay());
+  const groups = Admin.srAggregate("machine");
+  if (!groups.length) return null;
+  const pct = (q, s) => (q + s) ? Math.round(q / (q + s) * 1000) / 10 + "%" : "—";
+  const cls = (q, s) => { if (!(q + s)) return ""; const p = q / (q + s) * 100; return p >= 95 ? "g" : (p >= 85 ? "y" : "b"); };
+  const now = new Date();
+  const stamp = `${fmtDate(now)} ${fmtTime(now)}`;
+
+  const pages = groups.map((g, i) => {
+    const s = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
+      { prod: 0, mach: 0, qty: 0, scrap: 0 });
+    const body = g.rows.map((r) => `<tr><td>${esc(r.wo)}</td><td>${esc(r.name)}</td><td>${esc(r.st)}</td><td>${esc([...r.makers].join("、"))}</td>
+      <td class="r">${r.prod}</td><td class="r">${r.mach}</td><td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
+      <td class="r ${cls(r.qty, r.scrap)}">${pct(r.qty, r.scrap)}</td></tr>`).join("");
+    return `<div class="page">
+      <div class="hd"><h1>每日機台生產回報</h1><span class="co">通產工業股份有限公司</span></div>
+      <div class="sub"><span>日期：<b>${day}（${wd}）</b></span><span>頁次：${i + 1} / ${groups.length}</span></div>
+      <div class="machine">🖥 ${esc(g.station)}</div>
+      <div class="sums">
+        <div class="s"><div class="v">${s.qty}</div><div class="l">產出（顆）</div></div>
+        <div class="s"><div class="v ${s.scrap ? "b" : ""}">${s.scrap}</div><div class="l">不良（顆）</div></div>
+        <div class="s"><div class="v">${s.prod}</div><div class="l">生產時間（分）</div></div>
+        <div class="s"><div class="v">${s.mach}</div><div class="l">機台時間（分）</div></div>
+        <div class="s"><div class="v ${cls(s.qty, s.scrap)}">${pct(s.qty, s.scrap)}</div><div class="l">平均良率</div></div>
+      </div>
+      <table>
+        <tr><th>工單號碼</th><th>品名</th><th>工序站</th><th>製作者</th>
+          <th class="r">生產時間(分)</th><th class="r">機台時間(分)</th><th class="r">產出</th><th class="r">不良</th><th class="r">良率</th></tr>
+        ${body}
+        <tr class="totrow"><td colspan="4">合計</td><td class="r">${s.prod}</td><td class="r">${s.mach}</td>
+          <td class="r">${s.qty}</td><td class="r">${s.scrap}</td><td class="r">${pct(s.qty, s.scrap)}</td></tr>
+      </table>
+      <div class="foot">
+        <div class="defs">生產時間＝開始到結束（含暫停）；機台時間＝實際運轉（扣掉暫停）。良率＝良品 ÷（良品＋報廢）。<br>
+          資料來源：生產報工系統（當日已完成之報工紀錄）｜列印時間：${stamp}</div>
+        <div class="signs"><div class="sg">製表</div><div class="sg">組長</div><div class="sg">主管</div></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>每日機台生產回報 ${day}</title><style>
+    :root{--ink:#111;--muted:#666;--line:#ccc}
+    *{box-sizing:border-box;margin:0}
+    body{background:#fff;color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI","Microsoft JhengHei",sans-serif}
+    .page{width:210mm;min-height:296mm;max-width:100%;margin:0 auto;background:#fff;padding:14mm 12mm;display:flex;flex-direction:column;page-break-after:always}
+    .hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:3px solid var(--ink);padding-bottom:6px}
+    .hd h1{font-size:21px}.hd .co{font-size:13px;color:var(--muted)}
+    .sub{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);margin:6px 0 12px}
+    .machine{font-size:26px;font-weight:800;margin:2px 0 10px}
+    .sums{display:flex;border:1.5px solid var(--ink);margin-bottom:12px}
+    .sums .s{flex:1;text-align:center;padding:8px 4px;border-right:1px solid var(--line)}
+    .sums .s:last-child{border-right:0}
+    .sums .v{font-size:23px;font-weight:800}.sums .l{font-size:12px;color:var(--muted);margin-top:2px}
+    table{width:100%;border-collapse:collapse;font-size:13.5px}
+    th{background:#eef2f8;border:1px solid #bbb;padding:6px;font-size:13px;white-space:nowrap}
+    td{border:1px solid #ccc;padding:6px}
+    .r{text-align:right}
+    .g{color:#0a7c0a;font-weight:700}.y{color:#b07800;font-weight:700}.b{color:#c02626;font-weight:700}
+    .totrow td{background:#f5f7fa;font-weight:800}
+    .foot{margin-top:auto}
+    .defs{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:14px}
+    .signs{display:flex;gap:30px;margin-top:26px;font-size:14px}
+    .signs .sg{flex:1;border-top:1px solid var(--ink);padding-top:6px;text-align:center;color:var(--muted)}
+  </style></head><body>${pages}</body></html>`;
+};
+
+Admin.printStA4 = function () {
+  const html = Admin.buildStA4Html();
+  if (!html) return toast(t("no_data"), "err");
+  const w = window.open("", "_blank");
+  if (!w) return toast(t("err"), "err");
+  w.document.write(html);
+  w.document.close();
+  // 等內容排版好再叫出列印
+  setTimeout(() => { w.focus(); w.print(); }, 400);
 };
 
 // 匯出圖片：html2canvas 用到才載入（jsdelivr，跟 xlsx 同一個 CDN）
