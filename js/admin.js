@@ -879,7 +879,7 @@ Admin.jobsQuery = function () {
 Admin.jobsSelect = function (opts) {
   const q = Admin.jobsQuery();
   return sb.from("jobs")
-    .select("id,start_at,end_at,paused_minutes,work_minutes,qty,scrap_qty,note,work_content,station,machine,status,work_order_no,employees(name,team)", opts)
+    .select("id,start_at,end_at,paused_minutes,work_minutes,qty,scrap_qty,progress_pct,note,work_content,station,machine,status,work_order_no,employees(name,team)", opts)
     .gte("start_at", q.from)
     .lt("start_at", q.toNext)
     .order("start_at", { ascending: false })
@@ -906,7 +906,7 @@ Admin.loadJobs = async function () {
     <th>${t("wo_no")}</th><th>${t("station")}</th><th>${t("work_content")}</th>
     <th>${t("jb_start")}</th><th>${t("jb_end")}</th>
     <th class="r">${t("jb_paused")}</th><th class="r">${t("work_min")}</th>
-    <th class="r">${t("qty")}</th><th class="r">${t("scrap")}</th>
+    <th class="r">${t("qty")}</th><th class="r">${t("scrap")}</th><th class="r">${t("pg_col")}</th>
     <th>${t("note")}</th><th>${t("status")}</th>${Admin.canEditJobs() ? `<th>${t("actions")}</th>` : ""}</tr>`;
   const body = rows.map((j) => {
     const emp = j.employees || {};
@@ -920,6 +920,7 @@ Admin.loadJobs = async function () {
       <td style="white-space:nowrap">${stamp(j.start_at)}</td><td style="white-space:nowrap">${stamp(j.end_at)}</td>
       <td class="r">${pm ? pm : ""}</td><td class="r">${wm}</td>
       <td class="r">${j.qty != null ? j.qty : ""}</td><td class="r">${j.scrap_qty != null ? j.scrap_qty : ""}</td>
+      <td class="r">${Admin.pgCell(j.progress_pct)}</td>
       <td>${j.note || ""}</td><td>${stMap[j.status] || j.status}</td>
       ${Admin.canEditJobs() ? `<td style="white-space:nowrap">
         <button class="btn small ghost" data-act="edit" data-id="${j.id}">${t("act_edit")}</button>
@@ -1065,7 +1066,7 @@ Admin.exportJobs = async function () {
   const stMap = { running: t("status_running"), paused: t("status_paused"), done: t("status_done") };
   const aoa = [[t("name"), t("team"), t("wo_no"), t("product"), t("station"), t("machine"), t("work_content"),
     t("jb_start_d"), t("jb_start_t"), t("jb_end_d"), t("jb_end_t"),
-    t("jb_paused"), t("work_min"), t("qty"), t("scrap"), t("note"), t("status")]];
+    t("jb_paused"), t("work_min"), t("qty"), t("scrap"), t("pg_col") + "(%)", t("note"), t("status")]];
   rows.forEach((j) => {
     const e = j.employees || {};
     aoa.push([e.name || "", e.team || "", j.work_order_no, woNames[j.work_order_no] || "",
@@ -1074,7 +1075,8 @@ Admin.exportJobs = async function () {
       j.end_at ? fmtDate(j.end_at) : "", j.end_at ? fmtTime(j.end_at) : "",
       Number(j.paused_minutes) || 0,
       j.work_minutes != null ? Math.round(j.work_minutes) : "", j.qty != null ? j.qty : "",
-      j.scrap_qty != null ? j.scrap_qty : "", j.note || "", stMap[j.status] || j.status]);
+      j.scrap_qty != null ? j.scrap_qty : "", j.progress_pct != null ? Number(j.progress_pct) : "",
+      j.note || "", stMap[j.status] || j.status]);
   });
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "報工紀錄");
@@ -1288,7 +1290,7 @@ Admin.loadStReport = async function () {
   if (!day) return;
   const next = new Date(day + "T00:00:00"); next.setDate(next.getDate() + 1);
   const { data, error } = await sb.from("jobs")
-    .select("work_order_no,station,machine,start_at,end_at,work_minutes,qty,scrap_qty,employees(name)")
+    .select("work_order_no,station,machine,start_at,end_at,work_minutes,qty,scrap_qty,progress_pct,employees(name)")
     .eq("status", "done")
     .gte("start_at", day + "T00:00:00").lt("start_at", next.toISOString())
     .limit(3000);
@@ -1323,11 +1325,13 @@ Admin.srAggregate = function (mode) {
     // 機台／員工視角：同一張單的不同站要分列，所以子鍵帶站別
     const sub = (byMach || byEmp) ? j.work_order_no + "|" + (j.station || "") : j.work_order_no;
     if (!wm.has(sub)) {
-      wm.set(sub, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", st: j.station || "", machs: new Set(), makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0 });
+      wm.set(sub, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", st: j.station || "", machs: new Set(), makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0, pct: null });
     }
     const x = wm.get(sub);
     if (j.employees && j.employees.name) x.makers.add(j.employees.name);
     if (j.machine) x.machs.add(j.machine);
+    // 同一天報好幾次，完成度取最高的那個（進度只會往前）
+    if (j.progress_pct != null) x.pct = Math.max(x.pct == null ? -1 : x.pct, Number(j.progress_pct));
     // 生產時間＝開始到結束（含暫停）；沒有結束時間就退回實際工時
     const wall = (j.start_at && j.end_at)
       ? Math.round((new Date(j.end_at) - new Date(j.start_at)) / 60000)
@@ -1357,6 +1361,13 @@ Admin.buildStReport = function () {
     }).join("");
   if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
   Admin.renderStReport();
+};
+
+// 完成度顯示：100% 綠字「已完成」，其他藍色小標籤，沒填就留白
+Admin.pgCell = function (pct) {
+  if (pct == null) return `<span class="muted">—</span>`;
+  if (Number(pct) >= 100) return `<strong class="y-ok">${t("pg_done")}</strong>`;
+  return `<span class="pgtag">${pct}%</span>`;
 };
 
 Admin.renderStReport = function () {
@@ -1389,6 +1400,7 @@ Admin.renderStReport = function () {
       ${byEmp ? `<td>${esc([...r.machs].join("、"))}</td>` : `<td>${esc([...r.makers].join("、"))}</td>`}
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td>
       <td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
+      <td class="r">${Admin.pgCell(r.pct)}</td>
       <td class="r">${yieldCell(r.qty, r.scrap)}</td></tr>`).join("");
     return `<div class="sr-card">
       <div class="sr-head">
@@ -1405,7 +1417,8 @@ Admin.renderStReport = function () {
       <div style="overflow-x:auto"><table>
         <tr><th>${t("wo_no")}</th><th>${t("product")}</th>${(byMach || byEmp) ? `<th>${t("station")}</th>` : ""}<th>${byEmp ? t("machine") : t("sr_col_maker")}</th>
           <th class="r">${t("sr_col_prod_time")}</th><th class="r">${t("sr_col_mach_time")}</th>
-          <th class="r">${t("sr_col_qty")}</th><th class="r">${t("sr_col_bad")}</th><th class="r">${t("sr_col_yield")}</th></tr>
+          <th class="r">${t("sr_col_qty")}</th><th class="r">${t("sr_col_bad")}</th>
+          <th class="r">${t("pg_col")}</th><th class="r">${t("sr_col_yield")}</th></tr>
         ${body}
       </table></div>
       <p class="sr-foot">${t("sr_foot")}</p>
@@ -1438,13 +1451,14 @@ Admin.exportStExcel = function () {
     const head2 = [gLabel, t("wo_no"), t("product")];
     if (byMach || byEmp) head2.push(t("station"));
     head2.push(byEmp ? t("machine") : t("sr_col_maker"));
-    head2.push(t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_qty"), t("sr_col_bad"), t("sr_col_yield") + "(%)");
+    head2.push(t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_qty"), t("sr_col_bad"),
+      t("pg_col") + "(%)", t("sr_col_yield") + "(%)");
     const det = [head2];
     groups.forEach((g) => g.rows.forEach((r) => {
       const row = [g.station, r.wo, r.name];
       if (byMach || byEmp) row.push(r.st);
       row.push(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"));
-      row.push(r.prod, r.mach, r.qty, r.scrap || 0, pct(r.qty, r.scrap));
+      row.push(r.prod, r.mach, r.qty, r.scrap || 0, r.pct == null ? "" : Number(r.pct), pct(r.qty, r.scrap));
       det.push(row);
     }));
 
@@ -1483,6 +1497,7 @@ Admin.buildStA4Html = function () {
       ${byMach || byEmp ? `<td>${esc(r.st)}</td>` : ""}
       <td>${esc(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"))}</td>
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td><td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
+      <td class="r">${r.pct == null ? "—" : (Number(r.pct) >= 100 ? "已完成" : r.pct + "%")}</td>
       <td class="r ${cls(r.qty, r.scrap)}">${pct(r.qty, r.scrap)}</td></tr>`).join("");
     // 一組保證一頁：明細列多就自動縮小字體，不讓內容溢到第二頁
     const n = g.rows.length;
@@ -1500,7 +1515,8 @@ Admin.buildStA4Html = function () {
       </div>
       <table>
         <tr><th>工單號碼</th><th>品名</th>${midHead}
-          <th class="r">生產時間(分)</th><th class="r">機台時間(分)</th><th class="r">產出</th><th class="r">不良</th><th class="r">良率</th></tr>
+          <th class="r">生產時間(分)</th><th class="r">機台時間(分)</th><th class="r">產出</th><th class="r">不良</th>
+          <th class="r">完成度</th><th class="r">良率</th></tr>
         ${body}
       </table>
       <div class="foot">

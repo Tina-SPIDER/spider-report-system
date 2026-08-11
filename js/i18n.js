@@ -104,6 +104,9 @@ window.I18N = {
     au_hrs: "時數(小時)", au_n_days: "天數", au_days: "沒報工的日期", au_none: "🎉 沒有異常",
     au_all_emp: "全部人員",
     pz_reason: "原因", pz_start: "暫停開始", pz_resume: "恢復時間", pz_min: "暫停(分)",
+    pg_label: "本站完成度", pg_col: "完成度", pg_done: "已完成",
+    pg_0: "未完成", pg_30: "三成", pg_50: "一半", pg_70: "七成", pg_90: "快好了", pg_100: "已完成",
+    pg_last: "↑ 已帶出上次報的 {n}%，今天做到哪就往右點",
 
     todo_ph: "輸入待辦事項…", todo_empty: "目前沒有待辦事項", admin_todos: "員工待辦",
     priority: "優先", completion: "平均完成度", progress_col: "完成%", todo_due: "預計完成日",
@@ -348,6 +351,9 @@ window.I18N = {
     au_hrs: "Số giờ", au_n_days: "Số ngày", au_days: "Ngày không báo công", au_none: "🎉 Không có bất thường",
     au_all_emp: "Tất cả nhân viên",
     pz_reason: "Lý do", pz_start: "Bắt đầu dừng", pz_resume: "Tiếp tục lúc", pz_min: "Dừng (phút)",
+    pg_label: "Tiến độ công đoạn", pg_col: "Tiến độ", pg_done: "Hoàn thành",
+    pg_0: "Chưa", pg_30: "30%", pg_50: "50%", pg_70: "70%", pg_90: "Sắp xong", pg_100: "Xong",
+    pg_last: "↑ Đã lấy {n}% của lần trước, hôm nay làm tới đâu bấm tới đó",
 
     todo_ph: "Nhập việc cần làm…", todo_empty: "Chưa có việc cần làm", admin_todos: "Việc của NV",
     priority: "Ưu tiên", completion: "Hoàn thành TB", progress_col: "Hoàn thành%", todo_due: "Ngày dự kiến",
