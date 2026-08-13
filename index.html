@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=92">
+  <link rel="stylesheet" href="css/style.css?v=93">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=92" class="header-logo" alt="logo">
+    <img src="logo.png?v=93" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=92" class="login-logo" alt="logo">
+        <img src="logo.png?v=93" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -240,6 +240,7 @@
               <button data-atab="dashboard" class="active" data-i18n="admin_dash">即時看板</button>
               <button data-atab="machine" data-i18n="machine_usage">機台使用率</button>
               <button data-atab="streport" data-i18n="admin_streport">每日站別回報</button>
+              <button data-atab="os" data-i18n="admin_os">委外追蹤</button>
               <button data-atab="progress" data-i18n="admin_progress">工單進度</button>
             </div>
           </div>
@@ -368,6 +369,24 @@
             <p class="muted" data-i18n="au_hint" style="font-size:13px;margin:8px 0 0">每月整理用：①當天報工未滿門檻 ②疑似忘記按結束 ③整天完全沒報工。只列一般員工與組長。</p>
           </div>
           <div id="auResult"></div>
+        </div>
+
+        <!-- 委外追蹤 -->
+        <div id="pane-os" class="admin-pane hide">
+          <div class="card">
+            <h3 data-i18n="admin_os">委外追蹤</h3>
+            <div id="osKpis" class="stat-row"></div>
+            <div class="row" style="margin-top:10px">
+              <span class="seg" id="osSeg">
+                <button data-v="out" data-i18n="os_tab_out">在外面</button>
+                <button data-v="todo" data-i18n="os_tab_todo">待送出</button>
+                <button data-v="back" data-i18n="os_tab_back">已回廠</button>
+              </span>
+              <button id="btnOsRefresh" class="btn ghost" data-i18n="refresh">重新整理</button>
+            </div>
+            <p class="muted" data-i18n="os_hint" style="font-size:13px;margin:8px 0 0">委外站與廠商從 ERP 加工製程單自動帶入；只有「送出」「回廠」要人登記，誰送誰按。</p>
+          </div>
+          <div class="card"><div id="osTable" style="overflow-x:auto"></div></div>
         </div>
 
         <!-- 每日站別回報 -->
@@ -675,6 +694,37 @@
     </div>
   </div>
 
+  <!-- 委外：登記送出／回廠／指派 Modal -->
+  <div id="osModal" class="modal hide">
+    <div class="modal-card">
+      <h3 id="osModalTitle"></h3>
+      <p class="muted" id="osModalSub" style="font-size:14px;margin:0 0 10px"></p>
+      <div id="osFieldsSend">
+        <div class="row">
+          <div class="grow"><label style="margin:0" data-i18n="os_sent_at">送出日期</label><input id="osSentAt" type="date"></div>
+          <div class="grow"><label style="margin:0" data-i18n="os_sent_qty">送出數量</label><input id="osSentQty" type="number" min="0" inputmode="decimal" step="0.01"></div>
+        </div>
+        <label data-i18n="os_due_back">預計回廠日</label><input id="osDueBack" type="date">
+      </div>
+      <div id="osFieldsBack" class="hide">
+        <div class="row">
+          <div class="grow"><label style="margin:0" data-i18n="os_back_at">回廠日期</label><input id="osBackAt" type="date"></div>
+          <div class="grow"><label style="margin:0" data-i18n="os_back_qty">回廠數量</label><input id="osBackQty" type="number" min="0" inputmode="decimal" step="0.01"></div>
+        </div>
+        <label data-i18n="os_back_ng">不良數量（沒有填 0）</label><input id="osBackNg" type="number" min="0" inputmode="decimal" step="0.01" value="0">
+      </div>
+      <div id="osFieldsAssign" class="hide">
+        <label data-i18n="os_pick_emp">指派給誰去送</label><select id="osEmp"></select>
+      </div>
+      <label data-i18n="note">備註</label><input id="osNote" type="text">
+      <div style="height:14px"></div>
+      <div class="row">
+        <button id="btnOsCancel" class="btn ghost grow" data-i18n="cancel">取消</button>
+        <button id="btnOsConfirm" class="btn primary grow" data-i18n="confirm">確認</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 結束報工 Modal -->
   <div id="finishModal" class="modal hide">
     <div class="modal-card">
@@ -755,18 +805,18 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=92"></script>
-  <script src="js/i18n.js?v=92"></script>
-  <script src="js/auth.js?v=92"></script>
-  <script src="js/report.js?v=92"></script>
-  <script src="js/incident.js?v=92"></script>
-  <script src="js/todo.js?v=92"></script>
-  <script src="js/home.js?v=92"></script>
-  <script src="js/score.js?v=92"></script>
-  <script src="js/admin.js?v=92"></script>
-  <script src="js/scoreplan.js?v=92"></script>
-  <script src="js/calendar.js?v=92"></script>
-  <script src="js/nav.js?v=92"></script>
-  <script src="js/notify.js?v=92"></script>
+  <script src="js/config.js?v=93"></script>
+  <script src="js/i18n.js?v=93"></script>
+  <script src="js/auth.js?v=93"></script>
+  <script src="js/report.js?v=93"></script>
+  <script src="js/incident.js?v=93"></script>
+  <script src="js/todo.js?v=93"></script>
+  <script src="js/home.js?v=93"></script>
+  <script src="js/score.js?v=93"></script>
+  <script src="js/admin.js?v=93"></script>
+  <script src="js/scoreplan.js?v=93"></script>
+  <script src="js/calendar.js?v=93"></script>
+  <script src="js/nav.js?v=93"></script>
+  <script src="js/notify.js?v=93"></script>
 </body>
 </html>

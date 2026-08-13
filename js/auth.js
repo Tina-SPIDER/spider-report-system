@@ -49,6 +49,20 @@ App.stationDone = function (jobs, station) {
     .reduce((a, j) => a + (Number(j.qty) || 0), 0);
 };
 
+// 同一張工單裡同一個站名可能出現好幾道（例：010 與 030 都是 CNC車床加工）。
+// 報工從 v93 起會記下道次代碼(route_seq)，這裡就能分開算：
+//   ① 有記代碼的 → 只算代碼對得上的那一道
+//   ② 舊資料沒代碼 → 掛在「該站名的第一道」，歷史數字不會憑空消失
+// jobs 需含 station / status / qty / route_seq；seq 傳 null 代表不分道（沿用舊行為）。
+App.routeDone = function (jobs, station, seq, isFirstPass) {
+  return (jobs || [])
+    .filter((j) => j.status === "done" && j.station === station)
+    .filter((j) => (j.route_seq != null && j.route_seq !== "")
+      ? String(j.route_seq) === String(seq)
+      : (seq == null || isFirstPass))
+    .reduce((a, j) => a + (Number(j.qty) || 0), 0);
+};
+
 // Excel 的日期欄可能是 Date 物件、序號(45000)或字串(2026/07/30)，統一轉成 YYYY-MM-DD
 window.excelDate = function (v) {
   if (v == null || v === "") return null;

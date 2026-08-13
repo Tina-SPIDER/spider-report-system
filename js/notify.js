@@ -17,7 +17,7 @@ Notify.seen = {
   markAll() {
     const a = this.all();
     const now = new Date().toISOString();
-    a[App.ME.id] = { assign: now, incident: now };
+    a[App.ME.id] = { assign: now, incident: now, os_assign: now, os_ready: now };
     localStorage.setItem(N_KEY, JSON.stringify(a));
   },
 };
@@ -93,10 +93,67 @@ Notify.load = async function () {
     }
   }
 
+  // 3) 委外：① 被指派去送貨的人 ② 主管／組長看到「前一站完成、可以送了」
+  await Notify.loadOutsourcing(items);
+
   items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   Notify.items = items;
   Notify.paintBadge();
   if (Notify.open) Notify.paintPanel();
+};
+
+// 委外通知。欄位還沒建（v93 SQL 沒跑）時整段安靜跳過，不影響其他通知。
+Notify.loadOutsourcing = async function (items) {
+  const isMgr = ["主管", "組長"].includes(App.ME.role);
+  const { data: os, error } = await sb.from("work_order_routes")
+    .select("work_order_no,seq,station,sent_at,back_at,os_assigned_to,os_assigned_at")
+    .eq("station_type", "加工戶").is("sent_at", null).limit(500);
+  if (error || !os || !os.length) return;
+
+  // 指派給我、還沒送出的 → 一定通知本人
+  const mine = os.filter((r) => r.os_assigned_to === App.ME.id && r.os_assigned_at);
+  const seenA = Notify.seen.get("os_assign");
+  mine.forEach((r) => items.push({
+    kind: "os_assign", at: r.os_assigned_at, unread: r.os_assigned_at > seenA,
+    icon: "🚚",
+    title: t("nt_os_assigned", { wo: r.work_order_no, v: r.station }),
+    sub: t("os_do_send"),
+    go: { view: "admin", atab: "os" },
+  }));
+  if (!isMgr) return;
+
+  // 主管／組長：前一站已做滿、還沒登記送出的（＝待送出）
+  const nos = [...new Set(os.map((r) => r.work_order_no))];
+  const [{ data: wos }, { data: routes }, { data: jobs }] = await Promise.all([
+    sb.from("work_orders").select("work_order_no,qty").in("work_order_no", nos.slice(0, 300)),
+    sb.from("work_order_routes").select("work_order_no,seq,station,station_type").in("work_order_no", nos.slice(0, 300)),
+    sb.from("jobs").select("work_order_no,station,qty,end_at").eq("status", "done").in("work_order_no", nos.slice(0, 300)),
+  ]);
+  const qtyOf = {}; (wos || []).forEach((w) => (qtyOf[w.work_order_no] = Number(w.qty)));
+  const done = {}, lastEnd = {};
+  (jobs || []).forEach((j) => {
+    const k = j.work_order_no + "|" + j.station;
+    done[k] = (done[k] || 0) + (Number(j.qty) || 0);
+    if (!lastEnd[k] || String(j.end_at) > lastEnd[k]) lastEnd[k] = String(j.end_at);
+  });
+  const seenR = Notify.seen.get("os_ready");
+  os.forEach((r) => {
+    const prev = (routes || [])
+      .filter((x) => x.work_order_no === r.work_order_no && String(x.seq) < String(r.seq) && x.station_type === "工作站")
+      .sort((a, b) => String(a.seq).localeCompare(String(b.seq))).pop();
+    if (!prev) return;
+    const k = r.work_order_no + "|" + prev.station;
+    const tot = qtyOf[r.work_order_no];
+    const ok = isFinite(tot) && tot > 0 ? (done[k] || 0) >= tot : (done[k] || 0) > 0;
+    if (!ok || !lastEnd[k]) return;
+    items.push({
+      kind: "os_ready", at: lastEnd[k], unread: lastEnd[k] > seenR,
+      icon: "📦",
+      title: t("nt_os_ready", { wo: r.work_order_no, v: r.station }),
+      sub: prev.seq + " " + prev.station,
+      go: { view: "admin", atab: "os" },
+    });
+  });
 };
 
 Notify.paintBadge = function () {

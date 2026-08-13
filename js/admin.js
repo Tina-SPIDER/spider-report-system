@@ -7,8 +7,8 @@ window.Admin = { tab: "dashboard" };
 // 員工也能「看」指派、紀錄、異常、四個看板——但只能看，操作按鈕不會出現。
 Admin.TABS = {
   "主管": null,   // null＝全部
-  "組長": ["dashboard", "machine", "streport", "progress", "load", "assign", "jobs", "incident", "scoreplan"],
-  "員工": ["dashboard", "machine", "streport", "progress", "load", "assign", "jobs", "incident"],
+  "組長": ["dashboard", "machine", "streport", "os", "progress", "load", "assign", "jobs", "incident", "scoreplan"],
+  "員工": ["dashboard", "machine", "streport", "os", "progress", "load", "assign", "jobs", "incident"],
 };
 Admin.canTab = function (tab) {
   if (!App.ME || !(App.ME.role in Admin.TABS)) return false;
@@ -43,6 +43,7 @@ Admin.render = function () {
   else if (Admin.tab === "load") Admin.initLoad();
   else if (Admin.tab === "ship") Admin.initShip();
   else if (Admin.tab === "streport") Admin.initStReport();
+  else if (Admin.tab === "os") Admin.initOs();
   else if (Admin.tab === "audit") Admin.initAudit();
   else if (Admin.tab === "grade") Admin.initGrade();
   else if (Admin.tab === "download") Admin.initDownload();
@@ -1272,6 +1273,211 @@ Admin.exportAudit = function () {
   toast(t("ok"), "ok");
 };
 
+// ============================================================
+//  委外追蹤：委外站（加工戶）補上「送出 → 回廠」兩個時間點
+//  廠商與站別由 ERP 加工製程單自動帶入，只有這兩個動作要人登記。
+//  待送出＝前一站已做滿數量、還沒登記送出。誰送誰按，指派是選配。
+// ============================================================
+Admin.initOs = function () {
+  Admin.osTab = Admin.osTab || "out";
+  $$("#osSeg button").forEach((b) => {
+    b.onclick = () => { Admin.osTab = b.dataset.v; Admin.renderOs(); };
+  });
+  $("#btnOsRefresh").onclick = Admin.loadOs;
+  $("#btnOsCancel").onclick = () => $("#osModal").classList.add("hide");
+  Admin.loadOs();
+};
+
+Admin.loadOs = async function () {
+  // 只看目前還在系統裡的工單（舊單清掉後不會殘留）
+  const [{ data: routes, error: e1 }, { data: wos }] = await Promise.all([
+    sb.from("work_order_routes").select("*").eq("station_type", "加工戶").order("work_order_no").limit(1000),
+    sb.from("work_orders").select("work_order_no,product_name,customer,qty,due_date").limit(1000),
+  ]);
+  if (e1) return toast(t("err") + ": " + e1.message, "err");
+  const woMap = {};
+  (wos || []).forEach((w) => (woMap[w.work_order_no] = w));
+  const os = (routes || []).filter((r) => woMap[r.work_order_no]);
+  const nos = [...new Set(os.map((r) => r.work_order_no))];
+
+  // 判斷「前一站做完了沒」：要該工單的全部製程 + 報工紀錄
+  const allRoutes = [], jobs = [];
+  for (let i = 0; i < nos.length; i += 100) {
+    const part = nos.slice(i, i + 100);
+    const [{ data: rs }, { data: js }] = await Promise.all([
+      sb.from("work_order_routes").select("work_order_no,seq,station,station_type").in("work_order_no", part),
+      sb.from("jobs").select("work_order_no,station,qty,status").in("work_order_no", part).eq("status", "done"),
+    ]);
+    allRoutes.push(...(rs || []));
+    jobs.push(...(js || []));
+  }
+  const doneQty = {};
+  jobs.forEach((j) => { const k = j.work_order_no + "|" + j.station; doneQty[k] = (doneQty[k] || 0) + (Number(j.qty) || 0); });
+
+  // 登記人／指派對象的名字
+  const ids = [...new Set(os.flatMap((r) => [r.sent_by, r.back_by, r.os_assigned_to]).filter(Boolean))];
+  const empMap = {};
+  if (ids.length) {
+    const { data: es } = await sb.from("employees").select("id,name").in("id", ids);
+    (es || []).forEach((e) => (empMap[e.id] = e.name));
+  }
+
+  const today = fmtDate(new Date());
+  const dayDiff = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
+
+  Admin._os = os.map((r) => {
+    const w = woMap[r.work_order_no] || {};
+    const total = Number(w.qty);
+    const hasTotal = isFinite(total) && total > 0;
+    // 前一站＝同工單、代碼比自己小的最後一個廠內站
+    const prev = allRoutes
+      .filter((x) => x.work_order_no === r.work_order_no && String(x.seq) < String(r.seq) && x.station_type === "工作站")
+      .sort((a, b) => String(a.seq).localeCompare(String(b.seq))).pop();
+    const prevDone = prev
+      ? (hasTotal ? (doneQty[r.work_order_no + "|" + prev.station] || 0) >= total
+                  : (doneQty[r.work_order_no + "|" + prev.station] || 0) > 0)
+      : true;                                   // 沒有前一站（委外是第一站）就視為可送
+    const state = r.back_at ? "back" : (r.sent_at ? "out" : (prevDone ? "todo" : "wait"));
+    const days = r.sent_at ? dayDiff(r.sent_at, r.back_at || today) : null;
+    const late = !r.back_at && r.sent_at && r.due_back && today > r.due_back ? dayDiff(r.due_back, today) : 0;
+    return { ...r, w, state, days, late, prevStation: prev ? prev.seq + " " + prev.station : "",
+      sentName: empMap[r.sent_by] || "", backName: empMap[r.back_by] || "", assignName: empMap[r.os_assigned_to] || "" };
+  });
+
+  Admin.renderOs();
+};
+
+Admin.renderOs = function () {
+  const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const list = Admin._os || [];
+  const out = list.filter((r) => r.state === "out");
+  const todo = list.filter((r) => r.state === "todo");
+  const back = list.filter((r) => r.state === "back");
+  const lateN = out.filter((r) => r.late > 0).length;
+
+  $("#osKpis").innerHTML = `
+    <div class="stat"><div class="v">${out.length}</div><div class="l">${t("os_k_out")}</div></div>
+    <div class="stat"><div class="v" style="color:${lateN ? "var(--err)" : "inherit"}">${lateN}</div><div class="l">${t("os_k_late")}</div></div>
+    <div class="stat"><div class="v" style="color:${todo.length ? "var(--warn)" : "inherit"}">${todo.length}</div><div class="l">${t("os_k_todo")}</div></div>
+    <div class="stat"><div class="v">${back.length}</div><div class="l">${t("os_k_back")}</div></div>`;
+  $$("#osSeg button").forEach((b) => b.classList.toggle("active", b.dataset.v === Admin.osTab));
+
+  const box = $("#osTable");
+  const rows = Admin.osTab === "todo" ? todo : (Admin.osTab === "back" ? back : out);
+  if (!rows.length) { box.innerHTML = `<p class="muted">${t("os_empty")}</p>`; return; }
+  const wo = (r) => `${esc(r.work_order_no)}<div class="job-sub">${esc((r.w || {}).product_name || "")}</div>`;
+  const canAssign = ["主管", "組長"].includes(App.ME && App.ME.role);
+
+  if (Admin.osTab === "todo") {
+    rows.sort((a, b) => String((a.w || {}).due_date || "9999").localeCompare(String((b.w || {}).due_date || "9999")));
+    box.innerHTML = `<table><tr><th>${t("wo_no")}</th><th>${t("os_seq")}</th><th>${t("os_vendor")}</th>
+      <th>${t("os_prev")}</th><th class="r">${t("ld_due")}</th><th>${t("os_assigned")}</th><th></th></tr>` +
+      rows.map((r) => `<tr>
+        <td>${wo(r)}</td><td>${esc(r.seq)}</td><td>${esc(r.station)}</td>
+        <td>${esc(r.prevStation)}</td>
+        <td class="r"${(r.w || {}).due_date && (r.w || {}).due_date < fmtDate(new Date()) ? ' style="color:var(--err)"' : ""}>${(r.w || {}).due_date || "—"}</td>
+        <td>${r.assignName ? esc(r.assignName) : `<span class="muted">—</span>`}</td>
+        <td style="white-space:nowrap">
+          <button class="btn small go" data-os="send" data-wo="${esc(r.work_order_no)}" data-seq="${esc(r.seq)}">${t("os_do_send")}</button>
+          ${canAssign ? `<button class="btn small ghost" data-os="assign" data-wo="${esc(r.work_order_no)}" data-seq="${esc(r.seq)}">${t("os_do_assign")}</button>` : ""}
+        </td></tr>`).join("") + `</table>`;
+  } else if (Admin.osTab === "out") {
+    rows.sort((a, b) => b.late - a.late || String(a.due_back || "9999").localeCompare(String(b.due_back || "9999")));
+    box.innerHTML = `<table><tr><th>${t("wo_no")}</th><th>${t("os_vendor")}</th><th class="r">${t("os_sent_at")}</th>
+      <th class="r">${t("os_sent_qty")}</th><th class="r">${t("os_due_back")}</th><th class="r">${t("os_days")}</th>
+      <th>${t("status")}</th><th>${t("os_sent_by")}</th><th></th></tr>` +
+      rows.map((r) => `<tr>
+        <td>${wo(r)}</td><td>${esc(r.station)}</td><td class="r">${r.sent_at || ""}</td>
+        <td class="r">${r.sent_qty != null ? r.sent_qty : ""}</td><td class="r">${r.due_back || "—"}</td>
+        <td class="r"><strong${r.late > 0 ? ' class="y-bad"' : ""}>${r.days} ${t("os_day")}</strong></td>
+        <td>${r.late > 0 ? `<span class="badge" style="background:rgba(248,113,113,.2);color:#fca5a5">${t("os_late", { n: r.late })}</span>`
+          : `<span class="badge go">${t("pg_ontrack")}</span>`}</td>
+        <td>${esc(r.sentName)}</td>
+        <td><button class="btn small primary" data-os="back" data-wo="${esc(r.work_order_no)}" data-seq="${esc(r.seq)}">${t("os_do_back")}</button></td>
+      </tr>`).join("") + `</table>`;
+  } else {
+    rows.sort((a, b) => String(b.back_at || "").localeCompare(String(a.back_at || "")));
+    box.innerHTML = `<table><tr><th>${t("wo_no")}</th><th>${t("os_vendor")}</th><th class="r">${t("os_sent_at")}</th>
+      <th class="r">${t("os_back_at")}</th><th class="r">${t("os_days")}</th><th class="r">${t("os_qty_pair")}</th>
+      <th class="r">${t("sr_col_bad")}</th><th class="r">${t("os_vendor_yield")}</th><th>${t("os_back_by")}</th></tr>` +
+      rows.map((r) => {
+        const ok = Number(r.back_qty) || 0, ng = Number(r.back_ng) || 0;
+        const y = (ok + ng) ? Math.round(ok / (ok + ng) * 1000) / 10 : null;
+        return `<tr>
+          <td>${wo(r)}</td><td>${esc(r.station)}</td><td class="r">${r.sent_at || ""}</td>
+          <td class="r">${r.back_at || ""}</td><td class="r">${r.days} ${t("os_day")}</td>
+          <td class="r">${r.sent_qty != null ? r.sent_qty : "—"} / ${r.back_qty != null ? r.back_qty : "—"}</td>
+          <td class="r"${ng ? ' style="color:var(--err)"' : ""}>${ng}</td>
+          <td class="r">${y == null ? "—" : `<strong class="${y >= 95 ? "y-ok" : (y >= 85 ? "y-warn" : "y-bad")}">${y}%</strong>`}</td>
+          <td>${esc(r.backName)}</td></tr>`;
+      }).join("") + `</table>`;
+  }
+
+  $$("#osTable button[data-os]").forEach((b) => {
+    b.onclick = () => Admin.openOsModal(b.dataset.os, b.dataset.wo, b.dataset.seq);
+  });
+};
+
+Admin.openOsModal = async function (mode, wo, seq) {
+  const r = (Admin._os || []).find((x) => x.work_order_no === wo && String(x.seq) === String(seq));
+  if (!r) return;
+  Admin._osPick = { mode, wo, seq };
+  const name = (r.w || {}).product_name || "";
+  const today = fmtDate(new Date());
+
+  $("#osFieldsSend").classList.toggle("hide", mode !== "send");
+  $("#osFieldsBack").classList.toggle("hide", mode !== "back");
+  $("#osFieldsAssign").classList.toggle("hide", mode !== "assign");
+  $("#osNote").value = "";
+
+  if (mode === "send") {
+    $("#osModalTitle").textContent = "📦 " + t("os_do_send");
+    $("#osModalSub").textContent = `${wo} · ${name} → ${r.station}`;
+    $("#osSentAt").value = today;
+    $("#osSentQty").value = (r.w || {}).qty != null ? (r.w || {}).qty : "";
+    $("#osDueBack").value = "";
+  } else if (mode === "back") {
+    $("#osModalTitle").textContent = "✅ " + t("os_do_back");
+    $("#osModalSub").textContent = `${wo} · ${name} ← ${r.station}` +
+      (r.sent_qty != null ? `（${t("os_sent_qty")} ${r.sent_qty}）` : "");
+    $("#osBackAt").value = today;
+    $("#osBackQty").value = r.sent_qty != null ? r.sent_qty : "";
+    $("#osBackNg").value = 0;
+  } else {
+    $("#osModalTitle").textContent = "👤 " + t("os_do_assign");
+    $("#osModalSub").textContent = `${wo} · ${name} → ${r.station}`;
+    const { data: emps } = await sb.from("employees").select("id,name,team")
+      .eq("active", true).in("role", ["員工", "組長"]).order("name");
+    $("#osEmp").innerHTML = (emps || []).map((e) =>
+      `<option value="${e.id}"${e.id === r.os_assigned_to ? " selected" : ""}>${e.name}${e.team ? "（" + e.team + "）" : ""}</option>`).join("");
+  }
+  $("#btnOsConfirm").onclick = Admin.confirmOs;
+  $("#osModal").classList.remove("hide");
+};
+
+Admin.confirmOs = async function () {
+  const p = Admin._osPick;
+  if (!p) return;
+  const note = $("#osNote").value.trim() || null;
+  const num = (v) => (v === "" || v == null ? null : Number(v));
+  let res;
+  if (p.mode === "send") {
+    if (!$("#osSentAt").value) return toast(t("os_need_date"), "err");
+    res = await sb.rpc("os_send", { p_wo: p.wo, p_seq: p.seq, p_sent_at: $("#osSentAt").value,
+      p_qty: num($("#osSentQty").value), p_due_back: $("#osDueBack").value || null, p_note: note });
+  } else if (p.mode === "back") {
+    if (!$("#osBackAt").value) return toast(t("os_need_date"), "err");
+    res = await sb.rpc("os_back", { p_wo: p.wo, p_seq: p.seq, p_back_at: $("#osBackAt").value,
+      p_qty: num($("#osBackQty").value), p_ng: num($("#osBackNg").value) || 0, p_note: note });
+  } else {
+    res = await sb.rpc("os_assign", { p_wo: p.wo, p_seq: p.seq, p_employee_id: $("#osEmp").value });
+  }
+  if (res && res.error) return toast(rpcErr(res.error), "err");
+  $("#osModal").classList.add("hide");
+  toast(t("saved"), "ok");
+  Admin.loadOs();
+};
+
 // ---------- 每日站別回報：一天 × 一站 = 一張卡，可匯出圖片傳主管 ----------
 Admin.initStReport = function () {
   if (!$("#srDate").value) $("#srDate").value = fmtDate(new Date());
@@ -1991,34 +2197,40 @@ Admin.loadProgress = async function () {
 Admin.showProgressDetail = async function (wo) {
   const [woRes, routeRes, jobRes] = await Promise.all([
     sb.from("work_orders").select("*").eq("work_order_no", wo).maybeSingle(),
-    sb.from("work_order_routes").select("seq,station,station_type").eq("work_order_no", wo).order("seq"),
-    sb.from("jobs").select("station,qty,status,end_at,work_minutes,employees(name)").eq("work_order_no", wo).eq("status", "done"),
+    sb.from("work_order_routes").select("*").eq("work_order_no", wo).order("seq"),
+    sb.from("jobs").select("station,route_seq,qty,status,end_at,work_minutes,employees(name)").eq("work_order_no", wo).eq("status", "done"),
   ]);
   if (!woRes.data) { $("#pgInfo").innerHTML = ""; $("#pgTable").innerHTML = `<p class="muted">${t("wo_not_found")}</p>`; return; }
   const routes = routeRes.data || [];
   const jobs = jobRes.data || [];
 
-  // 分批報工同一站會有多筆，要「加總顆數」而不是有紀錄就算完成
+  // 分批報工同一站會有多筆，要「加總顆數」而不是有紀錄就算完成。
+  // 同一站名可能有好幾道（010／030 都是 CNC車床加工），所以彙總的鍵是「道次」不是站名：
+  //   有 route_seq 的報工 → 歸給那一道；舊資料沒有 → 歸給該站名的第一道。
   const total = Number(woRes.data.qty);
   const hasTotal = isFinite(total) && total > 0;
-  const byStation = {};
+  const firstSeqOf = {};
+  routes.forEach((r) => { if (!(r.station in firstSeqOf)) firstSeqOf[r.station] = String(r.seq); });
+  const byRoute = {};
   jobs.forEach((j) => {
-    if (!byStation[j.station]) byStation[j.station] = { qty: 0, mins: 0, last: null, names: new Set() };
-    const s = byStation[j.station];
+    const key = (j.route_seq != null && j.route_seq !== "") ? String(j.route_seq) : firstSeqOf[j.station];
+    if (key == null) return;
+    if (!byRoute[key]) byRoute[key] = { qty: 0, mins: 0, last: null, names: new Set() };
+    const s = byRoute[key];
     s.qty += Number(j.qty) || 0;
-    s.mins += Number(j.work_minutes) || 0;      // 該站累計實際工時（分批做的會加總）
+    s.mins += Number(j.work_minutes) || 0;      // 該道累計實際工時（分批做的會加總）
     if (!s.last || new Date(j.end_at) > new Date(s.last.end_at)) s.last = j;
     if (j.employees && j.employees.name) s.names.add(j.employees.name);
   });
-  const stDone = (st) => {
-    const s = byStation[st];
+  const stDone = (seq) => {
+    const s = byRoute[String(seq)];
     if (!s) return "none";
     if (!hasTotal) return "done";                 // 沒總數可比，維持舊behaviour
     return s.qty >= total ? "done" : "partial";
   };
 
   const inhouse = routes.filter((r) => r.station_type === "工作站");
-  const doneCount = inhouse.filter((r) => stDone(r.station) === "done").length;
+  const doneCount = inhouse.filter((r) => stDone(r.seq) === "done").length;
   const pct = inhouse.length ? Math.round(doneCount / inhouse.length * 100) : 0;
 
   // 交期狀態：已出貨看出貨日 vs 交期，沒出貨看今天 vs 交期
@@ -2048,10 +2260,21 @@ Admin.showProgressDetail = async function (wo) {
     <th>${t("maker_done")}</th><th class="r">${t("pg_mins")}</th><th>${t("done_time")}</th></tr>`;
   const body = routes.map((r) => {
     const outsourced = r.station_type !== "工作站";
-    const s = byStation[r.station];
-    const state = stDone(r.station);
+    const s = byRoute[String(r.seq)];
+    const state = stDone(r.seq);
     let badge, cls = "";
-    if (outsourced) badge = `<span class="badge mute">${t("outsourced")}</span>`;
+    if (outsourced) {
+      // 委外站改看送出／回廠：在外幾天、逾期就標紅，回來了就綠
+      const today = fmtDate(new Date());
+      const dd = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
+      if (r.back_at) badge = `<span class="badge go">${t("os_st_back")} ${r.back_at}</span>`;
+      else if (r.sent_at) {
+        const late = r.due_back && today > r.due_back ? dd(r.due_back, today) : 0;
+        badge = `<span class="badge ${late ? "" : "warn"}"${late ? ' style="background:rgba(248,113,113,.2);color:#fca5a5"' : ""}>` +
+          `${t("os_st_out", { n: dd(r.sent_at, today) })}${late ? " · " + t("os_late", { n: late }) : ""}</span>`;
+        if (late) cls = "warn-row";
+      } else badge = `<span class="badge mute">${t("outsourced")}</span>`;
+    }
     else if (state === "done") badge = `<span class="badge go">${t("progress_done")}</span>`;
     else if (state === "partial") { badge = `<span class="badge warn">${t("progress_partial")}</span>`; cls = "warn-row"; }
     else { badge = `<span class="badge mute">${t("progress_undone")}</span>`; cls = "warn-row"; }

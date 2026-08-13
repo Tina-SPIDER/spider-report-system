@@ -29,6 +29,7 @@ Nav.GROUPS = [
     { view: "admin", atab: "dashboard", label: "admin_dash" },
     { view: "admin", atab: "machine", label: "machine_usage" },
     { view: "admin", atab: "streport", label: "admin_streport" },
+    { view: "admin", atab: "os", label: "admin_os" },
     { view: "admin", atab: "progress", label: "admin_progress" },
     { view: "admin", atab: "load", label: "admin_load" },
   ] },

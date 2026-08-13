@@ -222,7 +222,8 @@ Report.queryWo = async function () {
   const opts = ['<option value="">' + t("select_station") + "</option>"];
   Report._routes.forEach((r) => {
     const v = String(r.station).replace(/"/g, "&quot;");
-    opts.push(`<option value="${v}">${r.seq} ${r.station}</option>`);
+    // 代碼跟著選項走：同站名有好幾道時，才分得出他選的是哪一道
+    opts.push(`<option value="${v}" data-seq="${String(r.seq).replace(/"/g, "&quot;")}">${r.seq} ${r.station}</option>`);
   });
   opts.push(`<option value="__new__">${t("new_station")}</option>`);
   const sel = $("#selStation");
@@ -262,6 +263,20 @@ Report.queryWo = async function () {
 };
 
 // 選到某站 → 顯示「這一站做了幾顆」。分批做的人才知道還剩多少、不會以為已經做完。
+// 目前下拉選到的那一道的代碼（臨時工單／新增站名沒有代碼 → null）
+Report.pickedSeq = function () {
+  const sel = $("#selStation");
+  const o = sel && sel.selectedOptions && sel.selectedOptions[0];
+  return (o && o.dataset.seq) || null;
+};
+
+// 這一道是不是該站名在這張工單的第一道（舊報工紀錄沒有代碼，掛在第一道）
+Report.isFirstPass = function (station, seq) {
+  if (!seq) return true;
+  const first = (Report._routes || []).find((r) => r.station === station);
+  return !!first && String(first.seq) === String(seq);
+};
+
 // 工單總數量(work_orders.qty)還沒建欄位時，就只顯示已完成顆數。
 Report.updateStationProgress = async function () {
   const box = $("#stationProgress");
@@ -272,14 +287,16 @@ Report.updateStationProgress = async function () {
 
   const reqId = (Report._spReq = (Report._spReq || 0) + 1);
   const { data, error } = await sb.from("jobs")
-    .select("qty,status,station")
+    .select("qty,status,station,route_seq")
     .eq("work_order_no", Report.current.work_order_no)
     .eq("station", station)
     .eq("status", "done");
   if (reqId !== Report._spReq) return;      // 期間又換了站，丟棄舊結果
   if (error) { box.innerHTML = ""; return; }
 
-  const done = App.stationDone(data, station);
+  // 同站名有好幾道時，只算選到的那一道（舊資料沒代碼 → 算在第一道）
+  const seq = Report.pickedSeq();
+  const done = App.routeDone(data, station, seq, Report.isFirstPass(station, seq));
   const total = Number(Report.current.qty);
   const hasTotal = isFinite(total) && total > 0;
   const left = hasTotal ? Math.max(0, total - done) : null;
@@ -457,6 +474,11 @@ Report.start = async function () {
     p_machine: machine || null,
   });
   if (error) return toast(friendlyErr(error), "err");
+  // 記下是第幾道（欄位／函式還沒建時靜靜略過，不影響開工）
+  const seq = Report.pickedSeq();
+  if (seq && data && data.id) {
+    sb.rpc("set_job_seq", { p_job_id: data.id, p_seq: seq }).then(() => {}, () => {});
+  }
   Report.lastMachine.set(machine);     // 下次自動帶這台
   Report._flashId = data && data.id;   // 新卡片高亮用
   toast(t("ok"), "ok");

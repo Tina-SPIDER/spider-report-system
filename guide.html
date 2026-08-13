@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>報工系統 使用說明</title>
-  <link rel="stylesheet" href="css/style.css?v=82">
+  <link rel="stylesheet" href="css/style.css?v=92">
   <style>
     body{padding:0}
     main{max-width:860px;margin:0 auto;padding:18px;display:block}
@@ -25,7 +25,7 @@
 </head>
 <body>
 <header>
-  <img src="logo.png?v=82" class="header-logo" alt="logo">
+  <img src="logo.png?v=92" class="header-logo" alt="logo">
   <h1>通產工業 生產報工系統 — 使用說明</h1>
 </header>
 
@@ -44,22 +44,37 @@
       <div class="f"><span class="step">1</span><span>登入後直接就是<b>報工頁</b>。輸入<b>工單號碼</b>，打完會自動查詢。<br>
         <span class="vn">Đăng nhập → nhập số lệnh sản xuất, hệ thống tự tra.</span></span></div>
       <div class="f"><span class="step">2</span><span>選<b>工序站</b>：會看到「本站進度」（做了幾顆／還差幾顆）、本站分數、圖面（有上傳的話）。<br>
-        <span class="vn">Chọn công đoạn — xem tiến độ và điểm của công đoạn.</span></span></div>
+        工單上沒有的站，選「➕ 新增站名…」再<b>從清單挑</b>（不能自己打，站名要統一）。<br>
+        <span class="vn">Chọn công đoạn — xem tiến độ và điểm. Công đoạn thiếu thì chọn «➕» rồi chọn trong danh sách.</span></span></div>
       <div class="f"><span class="step">3</span><span>選<b>使用機台</b>（<b style="color:#fca5a5">必選</b>，會自動帶上次用的）→ 按<b>開始工作</b>。<br>
         <span class="vn">Chọn máy (bắt buộc) → bấm Bắt đầu.</span></span></div>
-      <div class="f"><span class="step">4</span><span>要暫停時按<b>暫停</b>並<b>選原因</b>（待料／換模／故障…）→ 按送出。<br>
-        <span class="vn">Tạm dừng phải chọn lý do.</span></span></div>
-      <div class="f"><span class="step">5</span><span>做完按<b>結束報工</b>，三個都要填：<b style="color:#fca5a5">生產數量、報廢數量（沒有填 0）、作業內容</b>。<br>
-        <span class="vn">Kết thúc: nhập số lượng, số phế (không có ghi 0), nội dung công việc — cả 3 bắt buộc.</span></span></div>
+      <div class="f"><span class="step">4</span><span>要暫停時按<b>暫停</b>並<b>選原因</b>：午休／抽菸／品質調機／設備故障／其他（選「其他」要打原因）→ 按送出。<b>回來繼續要按「再開始」</b>。<br>
+        <span class="vn">Tạm dừng phải chọn lý do; quay lại phải bấm «Tiếp tục».</span></span></div>
+      <div class="f"><span class="step">5</span><span>做完按<b>結束報工</b>，三個都要填：<b style="color:#fca5a5">生產數量、報廢數量（沒有填 0）、作業內容</b>，再點一下<b>本站完成度</b>。<br>
+        <span class="vn">Kết thúc: số lượng, số phế (không có ghi 0), nội dung công việc — cả 3 bắt buộc; rồi bấm tiến độ.</span></span></div>
       <div class="f"><span class="step">6</span><span>送出後可按<b>「再開一單」</b>直接做下一張。</span></div>
     </div>
 
-    <div class="must">⚠️ <b>三件一定要記得：</b><br>
+    <div class="must">⚠️ <b>四件一定要記得：</b><br>
       ① 結束報工的「數量、報廢、作業內容」都必填——報廢沒有就填 0，不要亂填。<br>
-      ② 按暫停一定要選原因。<br>
-      ③ <b>查不到工單</b>（ERP 還沒開單）？按「⚡ 先開工（之後補單）」，名稱請打「<b>客戶＋品名</b>」，不要打「急件」。</div>
+      ② 按暫停一定要選原因；<b>下班請按「結束報工」，不要只按暫停</b>。<br>
+      ③ <b>查不到工單</b>（ERP 還沒開單）？按「⚡ 先開工（之後補單）」，名稱請打「<b>客戶＋品名</b>」，不要打「急件」。<br>
+      ④ <b>數量填「真的做完幾顆」，沒做完就填 0</b>，進度改用「本站完成度」表示。</div>
 
     <div class="tip">💡 分批做沒問題：做 2 顆先結束，之後再開同一張單繼續做，系統會累計「已完成 2 / 5 顆」。做滿了還要再開（補做／重工）會先跟你確認一次。</div>
+  </div>
+
+  <div class="card">
+    <h3>📏 本站完成度：一顆做好幾天怎麼報</h3>
+    <p style="font-size:15px;margin:0 0 8px">大件模具一天做不完一顆，數量填 0 會讓主管以為沒做事。所以結束報工時<b>多點一下完成度</b>：</p>
+    <p style="font-size:16px;margin:0 0 8px"><b>未完成｜三成｜一半｜七成｜快好了｜已完成</b></p>
+    <ul style="font-size:15px;line-height:1.9;margin:0;padding-left:22px">
+      <li><b>數量</b>＝真的做完幾顆（一顆都沒做完就 0）</li>
+      <li><b>完成度</b>＝這一站整體做到幾成，隔天報工會自動帶出昨天的進度，<b>做到哪就往右點</b></li>
+      <li>三顆都做三成？數量填 <b>0</b>、完成度點<b>「三成」</b>就好，<b>不用算小數</b></li>
+      <li>完成度只是給主管看進度，<b>不影響分數</b></li>
+    </ul>
+    <p class="vn">Khuôn lớn làm nhiều ngày: số lượng ghi số cái làm xong thật (chưa xong ghi 0), rồi bấm tiến độ công đoạn (30% / 50% / 70% / sắp xong / xong).</p>
   </div>
 
   <div class="card">
@@ -70,6 +85,7 @@
       <li><b>今天要做的工單</b>：逾期的標紅色；做完的自動收起來。</li>
       <li><b>行事曆</b>：日／週／月看每天要做哪個客戶、哪張工單。</li>
       <li><b>🔔 通知</b>：主管指派工單給你會通知。</li>
+      <li><b>看板與監控</b>：即時看板、機台使用率、工單進度、人員負荷、每日站別回報——大家都<b>看得到（只能看不能改）</b>，可以自己查單子做到哪一站了。</li>
     </ul>
   </div>
 
@@ -86,8 +102,22 @@
       <div class="f"><span class="step">2</span><span><b>工單指派</b>：把工單派給人（會顯示各站預估工時）。指派了，員工的行事曆、負載、看板才有內容。</span></div>
       <div class="f"><span class="step">3</span><span><b>出貨確認</b>：最後一站做滿的工單會出現在「待確認」，按確認出貨（日期可改）→ 員工的「出貨已得分」才會認列。</span></div>
       <div class="f"><span class="step">4</span><span><b>看板</b>：即時看板（誰在做什麼／誰沒報工）、工單進度（交期狀態：<span style="color:#fca5a5">已遲交</span>／<span style="color:#fdba74">進度內</span>／<span style="color:#7ee2a0">準時交付</span>，含相關異常）、人員負荷（誰超載，數字可點開）、機台使用率。</span></div>
+      <div class="f"><span class="step">5</span><span><b>每日站別回報</b>：選日期 → 可切<b>站別／機台／員工</b>三種視角 → <b>🖨 A4 列印</b>（一組一頁，可存 PDF 傳主管）或 <b>⬇ 匯出 Excel</b>（一天一檔，三種視角六張表）。</span></div>
     </div>
     <div class="tip">💡 行事曆上主管可以<b>直接拖曳工單改交期</b>；人工調整過的 ERP 不會覆蓋，可按「交回 ERP」還原。</div>
+    <div class="tip">💡 每月整理：<b>績效管理 → 報工稽核</b>，選月份就列出「當天未滿 6 小時／疑似忘記按結束／整天沒報工」，可篩單人、匯出 Excel。<b>免報工</b>的人與<b>週末</b>不列入。</div>
+  </div>
+
+  <h2>🧑‍🏭 組長可以做什麼</h2>
+  <div class="card">
+    <p style="font-size:15px;margin:0 0 6px">組長＝現場管理，比一般員工多這些：</p>
+    <ul style="font-size:15px;line-height:1.9;margin:0;padding-left:22px">
+      <li><b>工單指派</b>：可以派工、改站別與製作日期</li>
+      <li><b>異常處理</b>：可以標記已處理（有人回報異常時也會收到通知）</li>
+      <li><b>計分比例</b>：可以設定比例並<b>儲存草稿</b>（「確認並鎖定」只有主管能按）</li>
+      <li><b>報工紀錄</b>：只能看，不能編輯或刪除</li>
+    </ul>
+    <p class="muted" style="font-size:14px;margin:8px 0 0">出貨確認、工單給分、交期調整、員工管理、資料下載、報工稽核 → 主管專屬。</p>
   </div>
 
   <h2>❓ 常見問題</h2>
@@ -99,10 +129,13 @@
       <tr><td>忘記密碼</td><td>主管在「員工管理」按<b>重設密碼</b>。</td></tr>
       <tr><td>畫面怪怪的／功能沒出現</td><td>先<b>重新整理</b>頁面（手機下拉），多半是舊版快取。</td></tr>
       <tr><td>報異常想連到工單</td><td>異常回報的內容裡<b>寫上工單號</b>，工單進度頁才查得到。</td></tr>
+      <tr><td>一顆做好幾天，數量填什麼</td><td>填 <b>0</b>（還沒做完整顆），進度改點<b>「本站完成度」</b>，主管就看得到你有在推進。</td></tr>
+      <tr><td>下班了但單子沒做完</td><td>按<b>結束報工</b>（不是暫停），數量填今天做完的、完成度點到今天的進度；明天再開同一張單繼續。</td></tr>
+      <tr><td>工序站清單裡沒有我要的站</td><td>選「<b>➕ 新增站名…</b>」，下面會出現固定站別清單，從裡面挑（不能自己打，避免站名不一致）。</td></tr>
     </table>
   </div>
 
-  <p class="muted" style="font-size:13px;text-align:center;margin:20px 0">通產工業 生產報工系統（v82）· 本頁網址：spider-report-system.vercel.app/guide.html</p>
+  <p class="muted" style="font-size:13px;text-align:center;margin:20px 0">通產工業 生產報工系統（v92）· 本頁網址：spider-report-system.vercel.app/guide.html</p>
 </main>
 </body>
 </html>
