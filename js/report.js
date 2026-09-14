@@ -733,7 +733,7 @@ Report.confirmPause = async function () {
 };
 
 // 結束報工小視窗
-// 本站完成度：點檔位就好，不用打字。純粹是給人看的進度，不影響分數。
+// 本站完成度：點檔位就好，不用打字。必填，不影響分數。
 Report.PROGRESS_STEPS = [
   { v: 0, k: "pg_0" }, { v: 30, k: "pg_30" }, { v: 50, k: "pg_50" },
   { v: 70, k: "pg_70" }, { v: 90, k: "pg_90" }, { v: 100, k: "pg_100" },
@@ -742,19 +742,24 @@ Report.PROGRESS_STEPS = [
 Report.paintProgress = function () {
   const box = $("#finProgress");
   if (!box) return;
-  box.innerHTML = Report.PROGRESS_STEPS.map((s) =>
-    `<button type="button" data-v="${s.v}"${Report._finPct === s.v ? ' class="on"' : ""}>${t(s.k)}<small>${s.v === 100 ? "100%" : s.v + "%"}</small></button>`
-  ).join("");
+  box.innerHTML = Report.PROGRESS_STEPS.map((s) => {
+    const cls = [Report._finPct === s.v ? "on" : "", Report._lastPct === s.v ? "last" : ""].filter(Boolean).join(" ");
+    return `<button type="button" data-v="${s.v}"${cls ? ` class="${cls}"` : ""}>${t(s.k)}<small>${s.v === 100 ? "100%" : s.v + "%"}</small></button>`;
+  }).join("");
   $("#finPgBar").style.width = (Report._finPct || 0) + "%";
   $$("#finProgress button").forEach((b) => {
-    b.onclick = () => { Report._finPct = Number(b.dataset.v); Report.paintProgress(); };
+    b.onclick = () => { Report._finPct = Number(b.dataset.v); box.classList.remove("need"); Report.paintProgress(); };
   });
 };
 
-// 開結束報工視窗時，把這張單這一站「上次報到幾成」帶出來，往右點就好
+// 開結束報工視窗時，把這張單這一站「上次報到幾成」標出來當參考。
+// 不預先選好——預選的話按確認就會把舊進度原封不動再存一次，等於沒填。
 Report.loadLastProgress = async function (job) {
   Report._finPct = null;
+  Report._lastPct = null;
   $("#finPgHint").textContent = "";
+  const box = $("#finProgress");
+  if (box) box.classList.remove("need");
   Report.paintProgress();
   if (!job || !job.work_order_no || !job.station) return;
   const { data, error } = await sb.from("jobs")
@@ -764,7 +769,7 @@ Report.loadLastProgress = async function (job) {
   if (error) return;                                   // 欄位還沒建就當作沒有紀錄
   const last = (data || [])[0];
   if (!last) return;
-  Report._finPct = Number(last.progress_pct);
+  Report._lastPct = Number(last.progress_pct);
   $("#finPgHint").textContent = t("pg_last", { n: last.progress_pct });
   Report.paintProgress();
 };
@@ -811,17 +816,22 @@ Report.confirmFinish = async function () {
     $("#finWork").focus();
     return toast(t("work_required"), "err");
   }
-  const scrap = $("#finScrap").value === "" ? null : Number($("#finScrap").value);
+  // 本站完成度必填：沒填的話機台日報表、隨行單都看不出這站做到哪
+  if (Report._finPct == null) {
+    const box = $("#finProgress");
+    box.classList.add("need");
+    box.scrollIntoView({ behavior: "smooth", block: "center" });
+    return toast(t("pg_required"), "err");
+  }
+  const scrap =$("#finScrap").value === "" ? null : Number($("#finScrap").value);
   const note = $("#finNote").value.trim() || null;
   const workContent = $("#finWork").value.trim() || null;
   const { data, error } = await sb.rpc("end_job", {
     p_job_id: id, p_qty: qty, p_scrap: scrap, p_note: note, p_work_content: workContent,
   });
   if (error) return toast(friendlyErr(error), "err");
-  // 完成度另外寫（欄位／函式還沒建時靜靜略過，不影響報工本身）
-  if (Report._finPct != null) {
-    sb.rpc("set_job_progress", { p_job_id: id, p_pct: Report._finPct }).then(() => {}, () => {});
-  }
+  // 完成度另外寫；等它寫完再刷新畫面，失敗也不影響報工本身
+  await sb.rpc("set_job_progress", { p_job_id: id, p_pct: Report._finPct }).then(() => {}, () => {});
   const st = data ? data.status : "";
   // 不直接關視窗，改成問要不要再開一單——現場常常一張接一張
   $("#finForm").classList.add("hide");
