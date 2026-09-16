@@ -690,7 +690,7 @@ Report.action = async function (id, act) {
 Report.PAUSE_REASONS = [
   { code: "午休", k: "pr_lunch" }, { code: "抽菸", k: "pr_smoke" },
   { code: "品質調機", k: "pr_tune" }, { code: "設備故障", k: "pr_break" },
-  { code: "其他", k: "pr_other" },
+  { code: "插單", k: "pr_insert" }, { code: "其他", k: "pr_other" },
 ];
 
 Report.openPause = function (id) {
