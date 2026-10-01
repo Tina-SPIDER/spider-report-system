@@ -72,6 +72,15 @@ supabase/
 3. 定期用 `supabase db diff` 或 `pg_dump` 做「線上 vs 版控」對帳，發現漂移即補 migration。
 4. RLS 是安全底線：新表一律 `enable row level security` 並明確寫政策；
    別留 `using (true)` 的**寫入**政策。
+5. **2026-10-30 起 Supabase 不再自動開放新表的 Data API 權限**（Supabase 2026-09 通知）。
+   既有表不受影響；但之後每建一張新表，同一份 migration 裡要一併加上 grant，
+   否則前端／auto-import 會收到 `permission denied`：
+   ```sql
+   grant select, insert, update, delete on table public.新表名 to authenticated, service_role;
+   grant select on table public.新表名 to anon;   -- 只有未登入也要讀的表才加
+   grant usage, select on all sequences in schema public to authenticated, service_role;  -- 有 serial/identity 欄位時
+   ```
+   RLS 仍然照第 4 條寫；grant 只是「開門」，RLS 才是「誰能看哪幾列」。
 
 ---
 

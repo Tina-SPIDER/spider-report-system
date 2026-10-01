@@ -459,25 +459,43 @@ Report.start = async function () {
   let station = $("#selStation").value;
   if (station === "__new__") station = $("#selNewStation").value;
   if (!station) return toast(t("select_station"), "err");
-  // 這一站已經做滿工單數量了還要開工，多半是選錯站或補做／重工，先確認一次。
-  // 不硬擋——退貨重工、補做都是現場真的會發生的事。
-  const p = Report._stProgress;
-  if (p && p.full && p.station === station) {
-    if (!confirm(t("st_full_ask", { st: station, n: p.done, t: p.total }))) return;
-  }
   let machine = $("#selMachine").value;
   if (machine === "__new__") machine = $("#inNewMachine").value.trim();
   if (!machine) { $("#selMachine").focus(); return toast(t("machine_required"), "err"); }   // 機台必填
+  // 這一站已經做滿工單數量了還要開工：不硬擋（補做、退貨重工現場都會發生），
+  // 但要他選是「稍微處理」還是「重工製作」——重工會影響整張單的獎金，得記下來。
+  const p = Report._stProgress;
+  if (p && p.full && p.station === station) return Report.askRework(station, machine, p);
+  return Report.startNow(station, machine, null);
+};
+
+Report.askRework = function (station, machine, p) {
+  $("#rwHint").textContent = t("rw_hint", { st: station, n: p.done, t: p.total });
+  $$("#reworkModal .rw-opt").forEach((b) => {
+    b.onclick = async () => {
+      $("#reworkModal").classList.add("hide");
+      await Report.startNow(station, machine, b.dataset.kind);
+    };
+  });
+  $("#btnRwCancel").onclick = () => $("#reworkModal").classList.add("hide");
+  $("#reworkModal").classList.remove("hide");
+};
+
+// kind：null＝一般開工、"touchup"＝稍微整修（正常計分）、"other"＝其他（先正常計分，主管確認）、"rework"＝重工製作（做壞那輪 0 分、重工這輪 ×0.7）
+Report.startNow = async function (station, machine, kind) {
   const { data, error } = await sb.rpc("start_job", {
     p_work_order_no: Report.current.work_order_no,
     p_station: station,
     p_machine: machine || null,
   });
   if (error) return toast(friendlyErr(error), "err");
-  // 記下是第幾道（欄位／函式還沒建時靜靜略過，不影響開工）
+  // 記下是第幾道／這次是重工還是稍微處理（欄位／函式還沒建時靜靜略過，不影響開工）
   const seq = Report.pickedSeq();
   if (seq && data && data.id) {
     sb.rpc("set_job_seq", { p_job_id: data.id, p_seq: seq }).then(() => {}, () => {});
+  }
+  if (kind && data && data.id) {
+    sb.rpc("set_job_kind", { p_job_id: data.id, p_kind: kind }).then(() => {}, () => {});
   }
   Report.lastMachine.set(machine);     // 下次自動帶這台
   Report._flashId = data && data.id;   // 新卡片高亮用
@@ -616,6 +634,10 @@ Report.renderRunning = function () {
     const mins = (Date.now() - new Date(j.start_at).getTime()) / 60000 - Number(j.paused_minutes || 0);
     const over = j.status !== "paused" && mins > 480;
     const overTag = over ? ` <span class="badge err">⚠ ${t("overtime")}</span>` : "";
+    // 開工時選的「重工／稍微處理」，讓本人跟主管一眼看到這張會影響獎金
+    const kindTag = j.job_kind === "rework" ? ` <span class="badge err">🔁 ${t("kind_rework")}</span>`
+      : j.job_kind === "touchup" ? ` <span class="badge warn">🔧 ${t("kind_touch")}</span>`
+      : j.job_kind === "other" ? ` <span class="badge warn">📝 ${t("kind_other")}</span>` : "";
     const flash = (Report._flashId && j.id === Report._flashId) ? " flash" : "";
     const _dp = (Report.routeDraw || {})[j.work_order_no + "|" + j.station];
     const drawBtn = `<button class="btn small ghost" data-act="drawing" data-draw="${_dp ? String(_dp).replace(/"/g, "&quot;") : ""}" data-dtitle="📐 ${String(stBase).replace(/"/g, "&quot;")} ${t("drawing")}">📐 ${t("drawing")}</button>`;
@@ -623,7 +645,7 @@ Report.renderRunning = function () {
     <div class="job-card ${paused ? "paused" : ""}${over ? " over" : ""}${flash}" data-id="${j.id}">
       <div class="job-head">
         <strong>${j.work_order_no}</strong>
-        <span class="badge ${paused ? "warn" : "go"}">${paused ? t("status_paused") : t("status_running")}</span>${overTag}
+        <span class="badge ${paused ? "warn" : "go"}">${paused ? t("status_paused") : t("status_running")}</span>${kindTag}${overTag}
       </div>
       ${woLine}
       <div class="job-sub">${stName}</div>
