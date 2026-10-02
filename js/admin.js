@@ -1481,7 +1481,13 @@ Admin.confirmOs = async function () {
 // ---------- 每日站別回報：一天 × 一站 = 一張卡，可匯出圖片傳主管 ----------
 Admin.initStReport = function () {
   if (!$("#srDate").value) $("#srDate").value = fmtDate(new Date());
-  $("#srDate").onchange = Admin.loadStReport;
+  if (!$("#srDate2").value) $("#srDate2").value = $("#srDate").value;
+  // 起日晚於迄日時，把迄日拉到起日
+  $("#srDate").onchange = () => {
+    if ($("#srDate2").value < $("#srDate").value) $("#srDate2").value = $("#srDate").value;
+    Admin.loadStReport();
+  };
+  $("#srDate2").onchange = Admin.loadStReport;
   $("#btnSrQuery").onclick = Admin.loadStReport;
   $("#srView").onchange = Admin.buildStReport;
   $("#srStation").onchange = Admin.renderStReport;
@@ -1493,15 +1499,24 @@ Admin.initStReport = function () {
 
 Admin.loadStReport = async function () {
   const day = $("#srDate").value;
+  let day2 = $("#srDate2").value || day;
   if (!day) return;
-  const next = new Date(day + "T00:00:00"); next.setDate(next.getDate() + 1);
-  const { data, error } = await sb.from("jobs")
-    .select("work_order_no,station,machine,start_at,end_at,work_minutes,qty,scrap_qty,progress_pct,employees(name)")
-    .eq("status", "done")
-    .gte("start_at", day + "T00:00:00").lt("start_at", next.toISOString())
-    .limit(3000);
-  if (error) return toast(t("err") + ": " + error.message, "err");
-  const jobs = data || [];
+  if (day2 < day) day2 = day;
+  const from = new Date(day + "T00:00:00");
+  const next = new Date(day2 + "T00:00:00"); next.setDate(next.getDate() + 1);
+  // 區間可能很多筆（例如整個月），分頁抓，一次 1000 筆
+  const jobs = [];
+  for (let off = 0; ; off += 1000) {
+    const { data, error } = await sb.from("jobs")
+      .select("work_order_no,station,machine,start_at,end_at,work_minutes,qty,scrap_qty,progress_pct,employees(name)")
+      .eq("status", "done")
+      .gte("start_at", from.toISOString()).lt("start_at", next.toISOString())
+      .order("start_at", { ascending: true })
+      .range(off, off + 999);
+    if (error) return toast(t("err") + ": " + error.message, "err");
+    jobs.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
 
   // 品名要回 work_orders 查（分批避免網址過長）
   const nos = [...new Set(jobs.map((j) => j.work_order_no).filter(Boolean))];
@@ -1517,19 +1532,27 @@ Admin.loadStReport = async function () {
   Admin.buildStReport();
 };
 
-// 依指定視角把當天報工彙總成群組（畫面與匯出共用）
+// 區間標籤：單日顯示「日期（星期）」，多日顯示「起 ～ 迄」
+Admin.srRange = function () {
+  const a = $("#srDate").value;
+  const b = $("#srDate2").value || a;
+  if (!b || b <= a) return { a, b: a, label: `${a}（${t("wd" + new Date(a + "T00:00:00").getDay())}）`, file: a };
+  return { a, b, label: `${a} ～ ${b}`, file: `${a}_${b}` };
+};
+
+// 依指定視角把區間內報工彙總成群組（畫面與匯出共用）
 Admin.srAggregate = function (mode) {
-  const byMach = mode === "machine", byEmp = mode === "emp";
+  const byMach = mode === "machine", byEmp = mode === "emp", byWo = mode === "wo";
   const jobs = Admin._srJobs || [];
   const woMap = Admin._srWoMap || {};
   const gMap = new Map();
   jobs.forEach((j) => {
-    const key = (byEmp ? (j.employees && j.employees.name)
+    const key = (byWo ? j.work_order_no : byEmp ? (j.employees && j.employees.name)
       : byMach ? j.machine : j.station) || t("unspecified");
     if (!gMap.has(key)) gMap.set(key, new Map());
     const wm = gMap.get(key);
     // 機台／員工視角：同一張單的不同站要分列，所以子鍵帶站別
-    const sub = (byMach || byEmp) ? j.work_order_no + "|" + (j.station || "") : j.work_order_no;
+    const sub = (byMach || byEmp || byWo) ? j.work_order_no + "|" + (j.station || "") : j.work_order_no;
     if (!wm.has(sub)) {
       wm.set(sub, { wo: j.work_order_no, name: woMap[j.work_order_no] || "", st: j.station || "", machs: new Set(), makers: new Set(), prod: 0, mach: 0, qty: 0, scrap: 0, pct: null });
     }
@@ -1555,12 +1578,12 @@ Admin.srAggregate = function (mode) {
 // 畫面：依目前選的視角重建卡片與篩選下拉（切視角不用重新查資料庫）
 Admin.buildStReport = function () {
   const mode = $("#srView").value;
-  const byMach = mode === "machine", byEmp = mode === "emp";
+  const byMach = mode === "machine", byEmp = mode === "emp", byWo = mode === "wo";
   Admin._srData = Admin.srAggregate(mode);
 
   const sel = $("#srStation");
   const keep = sel.value;
-  sel.innerHTML = `<option value="">${t(byEmp ? "sr_all_e" : byMach ? "sr_all_m" : "sr_all", { n: Admin._srData.length })}</option>` +
+  sel.innerHTML = `<option value="">${t(byEmp ? "sr_all_e" : byWo ? "sr_all_w" : byMach ? "sr_all_m" : "sr_all", { n: Admin._srData.length })}</option>` +
     Admin._srData.map((g) => {
       const v = String(g.station).replace(/"/g, "&quot;");
       return `<option value="${v}">${g.station}</option>`;
@@ -1578,13 +1601,12 @@ Admin.pgCell = function (pct) {
 
 Admin.renderStReport = function () {
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const day = $("#srDate").value;
+  const rng = Admin.srRange();
   const pick = $("#srStation").value;
   const groups = (Admin._srData || []).filter((g) => !pick || g.station === pick);
   const box = $("#srCards");
   if (!groups.length) { box.innerHTML = `<div class="card"><p class="muted">${t("sr_no_data")}</p></div>`; return; }
 
-  const wd = t("wd" + new Date(day + "T00:00:00").getDay());
   const yieldCell = (qty, scrap) => {
     const tot = qty + scrap;
     if (!tot) return `<span class="muted">—</span>`;
@@ -1598,11 +1620,11 @@ Admin.renderStReport = function () {
       { prod: 0, mach: 0, qty: 0, scrap: 0 });
     const maxQty = Math.max(1, ...g.rows.map((r) => r.qty));
     const mode = $("#srView").value;
-    const byMach = mode === "machine", byEmp = mode === "emp";
+    const byMach = mode === "machine", byEmp = mode === "emp", byWo = mode === "wo";
     const body = g.rows.map((r) => `<tr>
-      <td>${esc(r.wo)}</td>
-      <td>${esc(r.name)}<div class="sr-bar" style="width:${Math.max(4, Math.round(r.qty / maxQty * 100))}%"></div></td>
-      ${(byMach || byEmp) ? `<td>${esc(r.st)}</td>` : ""}
+      <td>${esc(r.wo)}${byWo ? '<div class="sr-bar" style="width:${Math.max(4, Math.round(r.qty / maxQty * 100))}%"></div>' : ""}</td>
+      ${byWo ? "" : `<td>${esc(r.name)}<div class="sr-bar" style="width:${Math.max(4, Math.round(r.qty / maxQty * 100))}%"></div></td>`}
+      ${(byMach || byEmp || byWo) ? `<td>${esc(r.st)}</td>` : ""}
       ${byEmp ? `<td>${esc([...r.machs].join("、"))}</td>` : `<td>${esc([...r.makers].join("、"))}</td>`}
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td>
       <td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
@@ -1610,8 +1632,8 @@ Admin.renderStReport = function () {
       <td class="r">${yieldCell(r.qty, r.scrap)}</td></tr>`).join("");
     return `<div class="sr-card">
       <div class="sr-head">
-        <span class="nm">${byEmp ? "👷" : byMach ? "🖥" : "🔧"} ${esc(g.station)}</span>
-        <span class="dt">${day}（${wd}）｜${t("sr_title_line")}</span>
+        <span class="nm">${byEmp ? "👷" : byWo ? "📋" : byMach ? "🖥" : "🔧"} ${esc(g.station)}${byWo && g.rows[0] && g.rows[0].name ? "　" + esc(g.rows[0].name) : ""}</span>
+        <span class="dt">${rng.label}｜${t("sr_title_line")}</span>
       </div>
       <div class="sr-sums">
         <span class="s">${t("sr_prod")}　<b>${sum.qty}</b> ${t("sr_pcs")}</span>
@@ -1621,7 +1643,7 @@ Admin.renderStReport = function () {
         <span class="s">${t("sr_yield")}　${yieldCell(sum.qty, sum.scrap)}</span>
       </div>
       <div style="overflow-x:auto"><table>
-        <tr><th>${t("wo_no")}</th><th>${t("product")}</th>${(byMach || byEmp) ? `<th>${t("station")}</th>` : ""}<th>${byEmp ? t("machine") : t("sr_col_maker")}</th>
+        <tr><th>${t("wo_no")}</th>${byWo ? "" : `<th>${t("product")}</th>`}${(byMach || byEmp || byWo) ? `<th>${t("station")}</th>` : ""}<th>${byEmp ? t("machine") : t("sr_col_maker")}</th>
           <th class="r">${t("sr_col_prod_time")}</th><th class="r">${t("sr_col_mach_time")}</th>
           <th class="r">${t("sr_col_qty")}</th><th class="r">${t("sr_col_bad")}</th>
           <th class="r">${t("pg_col")}</th><th class="r">${t("sr_col_yield")}</th></tr>
@@ -1635,17 +1657,17 @@ Admin.renderStReport = function () {
 // 匯出 Excel：一天一個檔，站別／機台／員工三種視角一次包進去
 // （每視角兩張工作表：總表＝一組一列、明細＝完整攤平），共六張。
 Admin.exportStExcel = function () {
-  const day = $("#srDate").value;
+  const day = Admin.srRange().file;
   const pct = (qty, scrap) => (qty + scrap) ? Math.round(qty / (qty + scrap) * 1000) / 10 : "";
   const wb = XLSX.utils.book_new();
   let any = false;
 
-  [["station", "站別"], ["machine", "機台"], ["emp", "員工"]].forEach(([mode, tag]) => {
-    const byMach = mode === "machine", byEmp = mode === "emp";
+  [["station", "站別"], ["machine", "機台"], ["emp", "員工"], ["wo", "工單"]].forEach(([mode, tag]) => {
+    const byMach = mode === "machine", byEmp = mode === "emp", byWo = mode === "wo";
     const groups = Admin.srAggregate(mode);
     if (!groups.length) return;
     any = true;
-    const gLabel = byEmp ? t("name") : byMach ? t("machine") : t("station");
+    const gLabel = byWo ? t("wo_no") : byEmp ? t("name") : byMach ? t("machine") : t("station");
 
     const sum1 = [[gLabel, t("sr_col_qty"), t("sr_col_bad"), t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_yield") + "(%)"]];
     groups.forEach((g) => {
@@ -1655,14 +1677,14 @@ Admin.exportStExcel = function () {
     });
 
     const head2 = [gLabel, t("wo_no"), t("product")];
-    if (byMach || byEmp) head2.push(t("station"));
+    if (byMach || byEmp || byWo) head2.push(t("station"));
     head2.push(byEmp ? t("machine") : t("sr_col_maker"));
     head2.push(t("sr_col_prod_time"), t("sr_col_mach_time"), t("sr_col_qty"), t("sr_col_bad"),
       t("pg_col") + "(%)", t("sr_col_yield") + "(%)");
     const det = [head2];
     groups.forEach((g) => g.rows.forEach((r) => {
       const row = [g.station, r.wo, r.name];
-      if (byMach || byEmp) row.push(r.st);
+      if (byMach || byEmp || byWo) row.push(r.st);
       row.push(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"));
       row.push(r.prod, r.mach, r.qty, r.scrap || 0, r.pct == null ? "" : Number(r.pct), pct(r.qty, r.scrap));
       det.push(row);
@@ -1673,6 +1695,20 @@ Admin.exportStExcel = function () {
   });
 
   if (!any) return toast(t("no_data"), "err");
+
+  // 每筆報工原始明細（區間匯出時才看得出每天做了什麼）
+  const woMap = Admin._srWoMap || {};
+  const raw = [["開始日期", "開始時間", "結束日期", "結束時間", "工單號碼", "品名", "站別", "機台", "員工", "生產時間(分)", "機台時間(分)", "產出", "不良", "完成度(%)"]];
+  (Admin._srJobs || []).forEach((j) => {
+    const st = j.start_at ? new Date(j.start_at) : null;
+    const en = j.end_at ? new Date(j.end_at) : null;
+    const wall = (st && en) ? Math.round((en - st) / 60000) : Math.round(Number(j.work_minutes) || 0);
+    raw.push([st ? fmtDate(st) : "", st ? fmtTime(st) : "", en ? fmtDate(en) : "", en ? fmtTime(en) : "",
+      j.work_order_no, woMap[j.work_order_no] || "", j.station || "", j.machine || "", (j.employees && j.employees.name) || "",
+      Math.max(0, wall), Math.round(Number(j.work_minutes) || 0), Number(j.qty) || 0, Number(j.scrap_qty) || 0,
+      j.progress_pct == null ? "" : Number(j.progress_pct)]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(raw), "報工明細");
   XLSX.writeFile(wb, `每日生產回報_${day}.xlsx`);
   toast(t("ok"), "ok");
 };
@@ -1680,12 +1716,12 @@ Admin.exportStExcel = function () {
 // A4 列印：白底正式報表，一組一頁——跟著目前選的視角走（站別／機台／員工）
 Admin.buildStA4Html = function () {
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const day = $("#srDate").value;
-  const wd = t("wd" + new Date(day + "T00:00:00").getDay());
+  const rng = Admin.srRange();
+  const day = rng.file;
   const mode = $("#srView").value;
-  const byMach = mode === "machine", byEmp = mode === "emp";
-  const title = byEmp ? "每日員工生產回報" : byMach ? "每日機台生產回報" : "每日站別生產回報";
-  const icon = byEmp ? "👷" : byMach ? "🖥" : "🔧";
+  const byMach = mode === "machine", byEmp = mode === "emp", byWo = mode === "wo";
+  const title = byWo ? "每日工單生產回報" : byEmp ? "每日員工生產回報" : byMach ? "每日機台生產回報" : "每日站別生產回報";
+  const icon = byWo ? "📋" : byEmp ? "👷" : byMach ? "🖥" : "🔧";
   const groups = Admin.srAggregate(mode);
   if (!groups.length) return null;
   const pct = (q, s) => (q + s) ? Math.round(q / (q + s) * 1000) / 10 + "%" : "—";
@@ -1694,13 +1730,13 @@ Admin.buildStA4Html = function () {
   const stamp = `${fmtDate(now)} ${fmtTime(now)}`;
 
   // 中間那欄依視角換：站別視角＝製作者；機台視角＝工序站＋製作者；員工視角＝工序站＋使用機台
-  const midHead = (byMach || byEmp ? `<th>工序站</th>` : "") + `<th>${byEmp ? "使用機台" : "製作者"}</th>`;
+  const midHead = (byMach || byEmp || byWo ? `<th>工序站</th>` : "") + `<th>${byEmp ? "使用機台" : "製作者"}</th>`;
 
   const pages = groups.map((g, i) => {
     const s = g.rows.reduce((a, r) => ({ prod: a.prod + r.prod, mach: a.mach + r.mach, qty: a.qty + r.qty, scrap: a.scrap + r.scrap }),
       { prod: 0, mach: 0, qty: 0, scrap: 0 });
-    const body = g.rows.map((r) => `<tr><td>${esc(r.wo)}</td><td>${esc(r.name)}</td>
-      ${byMach || byEmp ? `<td>${esc(r.st)}</td>` : ""}
+    const body = g.rows.map((r) => `<tr><td>${esc(r.wo)}</td>${byWo ? "" : `<td>${esc(r.name)}</td>`}
+      ${byMach || byEmp || byWo ? `<td>${esc(r.st)}</td>` : ""}
       <td>${esc(byEmp ? [...r.machs].join("、") : [...r.makers].join("、"))}</td>
       <td class="r">${r.prod}</td><td class="r">${r.mach}</td><td class="r">${r.qty}</td><td class="r">${r.scrap || 0}</td>
       <td class="r">${r.pct == null ? "—" : (Number(r.pct) >= 100 ? "已完成" : r.pct + "%")}</td>
@@ -1710,8 +1746,8 @@ Admin.buildStA4Html = function () {
     const fit = n > 34 ? " c3" : n > 26 ? " c2" : n > 16 ? " c1" : "";
     return `<div class="page${fit}">
       <div class="hd"><h1>${title}</h1><span class="co">通產工業有限公司</span></div>
-      <div class="sub"><span>日期：<b>${day}（${wd}）</b></span><span>頁次：${i + 1} / ${groups.length}</span></div>
-      <div class="machine">${icon} ${esc(g.station)}</div>
+      <div class="sub"><span>日期：<b>${rng.label}</b></span><span>頁次：${i + 1} / ${groups.length}</span></div>
+      <div class="machine">${icon} ${esc(g.station)}${byWo && g.rows[0] && g.rows[0].name ? "　" + esc(g.rows[0].name) : ""}</div>
       <div class="sums">
         <div class="s"><div class="v">${s.qty}</div><div class="l">產出（顆）</div></div>
         <div class="s"><div class="v ${s.scrap ? "b" : ""}">${s.scrap}</div><div class="l">不良（顆）</div></div>
@@ -1720,7 +1756,7 @@ Admin.buildStA4Html = function () {
         <div class="s"><div class="v ${cls(s.qty, s.scrap)}">${pct(s.qty, s.scrap)}</div><div class="l">平均良率</div></div>
       </div>
       <table>
-        <tr><th>工單號碼</th><th>品名</th>${midHead}
+        <tr><th>工單號碼</th>${byWo ? "" : "<th>品名</th>"}${midHead}
           <th class="r">生產時間(分)</th><th class="r">機台時間(分)</th><th class="r">產出</th><th class="r">不良</th>
           <th class="r">完成度</th><th class="r">良率</th></tr>
         ${body}
@@ -1802,7 +1838,7 @@ Admin.exportStImg = async function () {
   if (!window.html2canvas) return toast(t("err"), "err");
   const canvas = await html2canvas(box, { backgroundColor: "#0b1220", scale: 2 });
   const a = document.createElement("a");
-  a.download = `站別回報_${$("#srDate").value}.png`;
+  a.download = `站別回報_${Admin.srRange().file}.png`;
   a.href = canvas.toDataURL("image/png");
   a.click();
   toast(t("ok"), "ok");
