@@ -167,6 +167,7 @@ App.loadProfile = async function () {
   $("#appView").classList.remove("hide");
   // 員工一天最常做的就是報工，直接落在報工頁；主管才需要先看看板
   App.go(data.role === "主管" ? "home" : "report");
+  if (window.MyStats) MyStats.dailyPopup();   // 每天第一次登入：跳出最近沒做好的事
 };
 
 App.logout = async function () {

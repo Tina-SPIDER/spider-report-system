@@ -436,3 +436,36 @@ tr.ld-detail td{background:var(--card2);padding:10px 12px}
 .barwrap i{display:block;height:100%;background:#3987e5;border-radius:6px;transition:width .2s}
 .pgtag{display:inline-block;background:rgba(57,135,229,.18);color:#8ec5ff;border-radius:999px;
   padding:1px 9px;font-size:13px;font-weight:700}
+/* 我的點數 */
+.ms-total{text-align:center;padding:6px 0}
+.ms-total .num{font-size:48px;font-weight:800;color:var(--c1);line-height:1.1}
+.ms-total .lbl{color:var(--muted);font-size:14px}
+.ms-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ms-chips .chip{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:999px;padding:6px 14px;cursor:pointer;font-size:14px}
+.ms-chips .chip.on{background:var(--primary);border-color:var(--primary)}
+
+.ms-ledger{width:100%;border-collapse:collapse}
+.ms-ledger td,.ms-ledger th{padding:6px 8px;border-bottom:1px solid var(--line)}
+.ms-ledger .r{text-align:right}
+.ms-ledger .ms-sum td{font-weight:800;color:var(--c1)}
+
+.ms-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:560px){.ms-cards{grid-template-columns:1fr}}
+.ms-card{background:var(--card2);border:1px solid var(--line);border-top:3px solid var(--c2);border-radius:var(--radius);padding:16px}
+.ms-card.c3{border-top-color:var(--c3)}
+.ms-card .num{font-size:32px;font-weight:800;color:var(--c2);text-align:center;line-height:1.2}
+.ms-card.c3 .num{color:var(--c3)}
+.ms-card .lbl{color:var(--muted);font-size:14px;text-align:center;margin-bottom:10px}
+.ms-rows{border-top:1px solid var(--line);padding-top:6px}
+.ms-row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;font-size:14px;border-bottom:1px dashed var(--line)}
+.ms-row b{font-weight:600}
+.ms-row.ms-sum{border-bottom:0;font-weight:800;font-size:15px;color:var(--txt)}
+.ms-row.ms-sum b{font-weight:800}
+.ms-row.ms-minus b{color:var(--err)}
+.ms-row.ms-plus b{color:var(--go)}
+.ms-row.tap{cursor:pointer}
+.ms-row.tap small{font-size:12px}
+.ms-items{background:var(--bg);border-radius:8px;padding:4px 10px;margin:2px 0 6px}
+.ms-item{position:relative;padding:8px 56px 8px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.ms-item:last-child{border-bottom:0}
+.ms-item .ms-amt{position:absolute;right:0;top:8px;font-weight:700}

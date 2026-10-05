@@ -18,6 +18,7 @@ function monthRange() {
 //       才涵蓋得到結尾是組裝／噴砂的那 8 張）
 //  ③ 收款已得分：待接收款資料，目前一律未達成
 Score.renderMine = async function () {
+  if (window.MyStats) MyStats.render();   // 新版：總累積／已出貨（分月）／未出貨 + 近期缺失
   await Report.ensureStations();
   const { y, m, startISO, endISO } = monthRange();
   const { data, error } = await sb.from("score_log")
