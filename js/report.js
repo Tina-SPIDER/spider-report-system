@@ -459,6 +459,10 @@ Report.start = async function () {
   let station = $("#selStation").value;
   if (station === "__new__") station = $("#selNewStation").value;
   if (!station) return toast(t("select_station"), "err");
+  // 委外站（加工戶）：不用選機台，改問是「送出」還是「取回」這一趟
+  const _route = (Report._routes || []).find((r) => String(r.seq) === String(Report.pickedSeq()) && r.station === station)
+    || (Report._routes || []).find((r) => r.station === station);
+  if (_route && _route.station_type === "加工戶") return Report.askOsTrip(station, _route);
   let machine = $("#selMachine").value;
   if (machine === "__new__") machine = $("#inNewMachine").value.trim();
   if (!machine) { $("#selMachine").focus(); return toast(t("machine_required"), "err"); }   // 機台必填
@@ -467,6 +471,22 @@ Report.start = async function () {
   const p = Report._stProgress;
   if (p && p.full && p.station === station) return Report.askRework(station, machine, p);
   return Report.startNow(station, machine, null);
+};
+
+// 委外：選這一趟是送出還是取回（取回要先有送出）
+Report.askOsTrip = async function (station, route) {
+  const { data } = await sb.from("work_order_routes").select("sent_at,back_at")
+    .eq("work_order_no", Report.current.work_order_no).eq("seq", route.seq).maybeSingle();
+  const sent = !!(data && data.sent_at && !data.back_at);     // 已送出、還沒取回
+  $("#osTripHint").textContent = route.seq + " " + station + (sent ? "　（" + t("os_trip_sent", { d: data.sent_at }) + "）" : "");
+  const bBack = $("#btnOsTripBack");
+  bBack.disabled = !sent;
+  $("#osTripBackNote").textContent = sent ? "" : t("os_trip_need_send");
+  const go = async (kind) => { $("#osTripModal").classList.add("hide"); await Report.startNow(station, null, kind); };
+  $("#btnOsTripSend").onclick = () => go("os_send");
+  bBack.onclick = () => go("os_back");
+  $("#btnOsTripCancel").onclick = () => $("#osTripModal").classList.add("hide");
+  $("#osTripModal").classList.remove("hide");
 };
 
 Report.askRework = function (station, machine, p) {
@@ -637,7 +657,9 @@ Report.renderRunning = function () {
     // 開工時選的「重工／稍微處理」，讓本人跟主管一眼看到這張會影響獎金
     const kindTag = j.job_kind === "rework" ? ` <span class="badge err">🔁 ${t("kind_rework")}</span>`
       : j.job_kind === "touchup" ? ` <span class="badge warn">🔧 ${t("kind_touch")}</span>`
-      : j.job_kind === "other" ? ` <span class="badge warn">📝 ${t("kind_other")}</span>` : "";
+      : j.job_kind === "other" ? ` <span class="badge warn">📝 ${t("kind_other")}</span>`
+      : j.job_kind === "os_send" ? ` <span class="badge warn">🚚 ${t("os_k_send")}</span>`
+      : j.job_kind === "os_back" ? ` <span class="badge warn">📥 ${t("os_k_back")}</span>` : "";
     const flash = (Report._flashId && j.id === Report._flashId) ? " flash" : "";
     const _dp = (Report.routeDraw || {})[j.work_order_no + "|" + j.station];
     const drawBtn = `<button class="btn small ghost" data-act="drawing" data-draw="${_dp ? String(_dp).replace(/"/g, "&quot;") : ""}" data-dtitle="📐 ${String(stBase).replace(/"/g, "&quot;")} ${t("drawing")}">📐 ${t("drawing")}</button>`;
@@ -797,6 +819,8 @@ Report.loadLastProgress = async function (job) {
 };
 
 Report.openFinish = function (id) {
+  const _j = (Report.jobs || []).find((x) => x.id === id);
+  if (_j && (_j.job_kind === "os_send" || _j.job_kind === "os_back")) return Report.openOsEnd(_j);
   $("#finishJobId").value = id;
   $("#finWork").value = "";
   $("#finQty").value = "";
@@ -816,6 +840,44 @@ Report.openFinish = function (id) {
     // 清空並對準工單號，直接打下一張
     setTimeout(() => { const i = $("#inWoNo"); if (i) { i.value = ""; i.focus(); i.scrollIntoView({ behavior: "smooth", block: "center" }); } }, 60);
   };
+};
+
+// 委外「結束」：送出填送出數量＋預計回廠日；取回填取回數量＋不良數量。
+// 這趟的時間／點數走一般報工；數量另外寫進委外追蹤（取代主管手動登記）
+Report.openOsEnd = function (j) {
+  const send = j.job_kind === "os_send";
+  $("#osEndTitle").textContent = (send ? "🚚 " : "📥 ") + t(send ? "os_end_send" : "os_end_back");
+  $("#osEndSend").classList.toggle("hide", !send);
+  $("#osEndBack").classList.toggle("hide", send);
+  $("#osEndSendQty").value = ""; $("#osEndBackQty").value = ""; $("#osEndBackNg").value = "0";
+  const d = new Date(); d.setDate(d.getDate() + 3); $("#osEndDue").value = fmtDate(d);
+  $("#btnOsEndCancel").onclick = () => $("#osEndModal").classList.add("hide");
+  $("#btnOsEndConfirm").onclick = () => Report.confirmOsEnd(j);
+  $("#osEndModal").classList.remove("hide");
+};
+
+Report.confirmOsEnd = async function (j) {
+  const send = j.job_kind === "os_send";
+  const qtyEl = $(send ? "#osEndSendQty" : "#osEndBackQty");
+  const qty = qtyEl.value.trim();
+  if (qty === "" || !isFinite(Number(qty)) || Number(qty) < 0) { qtyEl.focus(); return toast(t("qty_required"), "err"); }
+  const ng = Number($("#osEndBackNg").value || 0);
+  const seq = (j.route_seq != null && j.route_seq !== "") ? String(j.route_seq)
+    : (((Report.routeSeq || {})[j.work_order_no + "|" + j.station] || [])[0] || null);
+  if (!seq) return toast(t("err") + ": route", "err");
+  const today = fmtDate(new Date());
+  // 先登記委外追蹤（失敗就不結束，免得時間算了、數量沒記）
+  const r = send
+    ? await sb.rpc("os_send", { p_wo: j.work_order_no, p_seq: seq, p_sent_at: today, p_qty: Number(qty), p_due_back: $("#osEndDue").value || null })
+    : await sb.rpc("os_back", { p_wo: j.work_order_no, p_seq: seq, p_back_at: today, p_qty: Number(qty), p_ng: ng });
+  if (r.error) return toast(friendlyErr(r.error), "err");
+  // 這一趟是跑腿，不是生產：生產數量記 0，不影響「這站做了幾顆」
+  const { error } = await sb.rpc("end_job", { p_job_id: j.id, p_qty: 0, p_scrap: null, p_note: null, p_work_content: t(send ? "os_end_send" : "os_end_back") });
+  if (error) return toast(friendlyErr(error), "err");
+  $("#osEndModal").classList.add("hide");
+  toast(t("ok"), "ok");
+  await Report.loadRunning();
+  if (window.Home) Home.refreshIfActive();
 };
 
 Report.confirmFinish = async function () {
