@@ -204,6 +204,7 @@ window.renderActiveView = function () {
   else if (App.activeView === "todo") Todo.render();
   else if (App.activeView === "score") Score.renderMine();
   else if (App.activeView === "team") Score.renderTeam();
+  else if (App.activeView === "board") Board.render();
   else if (App.activeView === "admin") Admin.render();
 };
 

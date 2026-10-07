@@ -469,3 +469,5 @@ tr.ld-detail td{background:var(--card2);padding:10px 12px}
 .ms-item{position:relative;padding:8px 56px 8px 0;border-bottom:1px dashed var(--line);font-size:13px}
 .ms-item:last-child{border-bottom:0}
 .ms-item .ms-amt{position:absolute;right:0;top:8px;font-weight:700}
+
+#boardFrame{width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg)}

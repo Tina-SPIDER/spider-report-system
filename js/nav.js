@@ -36,6 +36,7 @@ Nav.GROUPS = [
   { key: "perf", icon: "📈", label: "grp_perf", items: [
     { view: "score", label: "nav_score" },
     { view: "team", label: "nav_team" },
+    { view: "board", label: "nav_board", roles: ["主管"] },
     { view: "admin", atab: "overview", label: "admin_overview", roles: ["主管"] },
     { view: "admin", atab: "audit", label: "admin_audit", roles: ["主管"] },
   ] },
