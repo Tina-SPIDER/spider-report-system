@@ -179,7 +179,24 @@ App.logout = async function () {
 };
 
 // 切換分頁
+// ---- 新版本自動重新整理 ----
+// 換頁或回到畫面時，偷看一下伺服器上的 index.html 版本號（?v=N）；
+// 跟自己載入的不同就重新整理。抓的是 Vercel 上的網頁，不吃 Supabase 流量。
+App.MY_VER = (document.querySelector('script[src*="auth.js?v="]') || {}).src?.match(/v=(\d+)/)?.[1];
+App._verAt = 0;
+App.checkVersion = async function () {
+  if (!App.MY_VER || Date.now() - App._verAt < 60000) return;   // 最多一分鐘查一次
+  App._verAt = Date.now();
+  try {
+    const html = await fetch("index.html?_=" + Date.now(), { cache: "no-store" }).then((r) => r.text());
+    const v = html.match(/auth\.js\?v=(\d+)/);
+    if (v && v[1] !== App.MY_VER) location.reload();
+  } catch (e) { /* 沒網路就算了，下次再查 */ }
+};
+document.addEventListener("visibilitychange", () => { if (!document.hidden) App.checkVersion(); });
+
 App.go = function (view) {
+  App.checkVersion();
   App.activeView = view;
   if (view === "report") Report._remind = true;   // 進報工頁要提醒未完成
   $$(".view").forEach((v) => v.classList.toggle("hide", v.id !== "view-" + view));
