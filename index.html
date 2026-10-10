@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>通產工業 生產報工系統</title>
-  <link rel="stylesheet" href="css/style.css?v=103">
+  <link rel="stylesheet" href="css/style.css?v=105">
 </head>
 <body>
 
   <!-- 頂列 -->
   <header>
     <button id="btnMenu" class="hdr-btn menu-btn hide" aria-label="選單">☰</button>
-    <img src="logo.png?v=103" class="header-logo" alt="logo">
+    <img src="logo.png?v=105" class="header-logo" alt="logo">
     <h1 data-i18n="app_title">通產工業 生產報工系統</h1>
     <span id="whoami"></span>
     <button id="btnTools" class="hdr-btn hide" data-i18n="hdr_tools">📥 工具/下載</button>
@@ -37,7 +37,7 @@
   <section id="loginView">
     <div class="login-wrap">
       <div class="login-card">
-        <img src="logo.png?v=103" class="login-logo" alt="logo">
+        <img src="logo.png?v=105" class="login-logo" alt="logo">
         <h2 data-i18n="login">登入</h2>
         <form id="loginForm">
           <label data-i18n="account">帳號</label>
@@ -276,9 +276,10 @@
         <!-- 即時看板 -->
         <div id="pane-dashboard" class="admin-pane">
           <div class="card">
-            <h3><span data-i18n="admin_dash">即時看板</span> <small id="dashTime" class="muted"></small></h3>
+            <h3><span data-i18n="admin_dash">即時看板</span> <small id="dashTime" class="muted"></small>
+              <button id="btnDashRefresh" class="btn small" style="float:right" data-i18n="dash_refresh">🔄 重新整理</button></h3>
             <div id="dashSummary" class="stat-row"></div>
-            <p class="muted" style="font-size:12px;margin-top:8px" data-i18n="dash_auto">每 20 秒自動更新</p>
+            <p class="muted" style="font-size:12px;margin-top:8px" data-i18n="dash_auto">要看最新資料請按「重新整理」</p>
           </div>
           <div class="card">
             <h3 data-i18n="dash_now">目前正在製作</h3>
@@ -875,21 +876,21 @@
   <!-- SheetJS：讀取 Excel 檔 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 設定與程式（?v= 版本號：更新後改數字即可避免快取） -->
-  <script src="js/config.js?v=103"></script>
-  <script src="js/i18n.js?v=103"></script>
-  <script src="js/auth.js?v=103"></script>
-  <script src="js/report.js?v=103"></script>
-  <script src="js/incident.js?v=103"></script>
-  <script src="js/todo.js?v=103"></script>
-  <script src="js/home.js?v=103"></script>
-  <script src="js/score.js?v=103"></script>
-  <script src="js/mystats.js?v=103"></script>
-  <script src="js/board.js?v=103"></script>
-  <script src="js/appeals.js?v=103"></script>
-  <script src="js/admin.js?v=103"></script>
-  <script src="js/scoreplan.js?v=103"></script>
-  <script src="js/calendar.js?v=103"></script>
-  <script src="js/nav.js?v=103"></script>
-  <script src="js/notify.js?v=103"></script>
+  <script src="js/config.js?v=105"></script>
+  <script src="js/i18n.js?v=105"></script>
+  <script src="js/auth.js?v=105"></script>
+  <script src="js/report.js?v=105"></script>
+  <script src="js/incident.js?v=105"></script>
+  <script src="js/todo.js?v=105"></script>
+  <script src="js/home.js?v=105"></script>
+  <script src="js/score.js?v=105"></script>
+  <script src="js/mystats.js?v=105"></script>
+  <script src="js/board.js?v=105"></script>
+  <script src="js/appeals.js?v=105"></script>
+  <script src="js/admin.js?v=105"></script>
+  <script src="js/scoreplan.js?v=105"></script>
+  <script src="js/calendar.js?v=105"></script>
+  <script src="js/nav.js?v=105"></script>
+  <script src="js/notify.js?v=105"></script>
 </body>
 </html>

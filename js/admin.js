@@ -583,7 +583,8 @@ Admin.downloadAll = async function () {
 // ---------- 即時看板 ----------
 Admin.initDashboard = function () {
   Admin.loadDashboard();
-  Admin.dashTimer = setInterval(Admin.loadDashboard, 20000); // 每 20 秒
+  // 不自動更新（省 Supabase 流量）：打開看板抓一次，之後主管按「重新整理」才抓
+  $("#btnDashRefresh").onclick = Admin.loadDashboard;
 };
 
 // ---------- 機台使用率：改成可查日期區間的報表，不再每 20 秒自動刷新

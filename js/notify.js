@@ -22,8 +22,11 @@ Notify.seen = {
   },
 };
 
+// 暫停鈴鐺通知（省 Supabase 流量）。要恢復時改成 true 即可，其餘程式都保留。
+Notify.ENABLED = false;
+
 Notify.start = function () {
-  if (!App.ME) return;
+  if (!App.ME || !Notify.ENABLED) return;
   $("#btnBell").classList.remove("hide");
   $("#btnBell").onclick = Notify.toggle;
   document.addEventListener("click", (e) => {
@@ -31,7 +34,14 @@ Notify.start = function () {
   });
   Notify.load();
   clearInterval(Notify.timer);
-  Notify.timer = setInterval(Notify.load, 60000);   // 每分鐘檢查一次
+  // 每 5 分鐘檢查一次；畫面在背景時不抓（省 Supabase 流量），回到畫面立即補抓
+  Notify.timer = setInterval(() => { if (!document.hidden) Notify.load(); }, 300000);
+  if (!Notify._vis) {
+    Notify._vis = true;
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && Notify.timer) Notify.load();
+    });
+  }
 };
 
 Notify.stop = function () {
