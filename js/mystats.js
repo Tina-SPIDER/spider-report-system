@@ -189,6 +189,7 @@ MyStats.injectCss = function () {
 
 MyStats.decorate = function (box, rows, issues) {
   MyStats.injectCss();
+  MyStats._issues = issues || [];
   const E = msEsc, N = msNum;
   const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
   const det = (r) => r.detail || {};
@@ -263,20 +264,24 @@ MyStats.decorate = function (box, rows, issues) {
   // 互動
   const btn = box.querySelector("#msScBtn"); if (btn) btn.onclick = () => box.querySelector("#msScPop").classList.toggle("hide");
   box.onclick = (e) => {
+    const apb = e.target.closest("[data-ap]");
+    if (apb) { MyStats.openAppeal(apb.dataset.ap === "new" ? {} : { item: apb.dataset.item, job_id: apb.dataset.job || null, wo: apb.dataset.wo, st: apb.dataset.st, d: apb.dataset.d }); return; }
     const c = e.target.closest("[data-cat]");
     if (c) {
       const i = Number(c.dataset.cat), cc = MyStats._cats[i]; box.querySelectorAll(".ms-catr").forEach((x, j) => x.classList.toggle("sel", j === i));
       const items = [...cc[1].items].sort((a, b) => Math.abs(b.a) - Math.abs(a.a));
-      box.querySelector("#msCatDetail").innerHTML = `<div style="font-size:12px;opacity:.7;margin:2px 0 6px">${E(mt("p_list", { k: cc[0], n: items.length }))}</div>` + items.map((it) => `<div class="ms-itm" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-size:14px"><b>${E(it.wo)}</b> <span style="opacity:.65">${E(it.c || "")}</span></div><div style="font-size:12px;opacity:.65">${E(it.st || "")}${it.d ? " · " + E(it.d) : ""}</div></div><b style="color:#ff7a87;font-size:18px;white-space:nowrap">－${N(Math.abs(it.a))}</b></div>`).join("");
+      box.querySelector("#msCatDetail").innerHTML = `<div style="font-size:12px;opacity:.7;margin:2px 0 6px">${E(mt("p_list", { k: cc[0], n: items.length }))}</div>` + items.map((it) => `<div class="ms-itm" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><div style="font-size:14px"><b>${E(it.wo)}</b> <span style="opacity:.65">${E(it.c || "")}</span></div><div style="font-size:12px;opacity:.65">${E(it.st || "")}${it.d ? " · " + E(it.d) : ""}</div><button type="button" class="btn small ghost" style="margin-top:6px" data-ap="1" data-item="${E(cc[0] + "：" + it.wo + " " + (it.st || ""))}" data-wo="${E(it.wo)}" data-st="${E(it.st || "")}">${mt("a_btn")}</button></div><b style="color:#ff7a87;font-size:18px;white-space:nowrap">－${N(Math.abs(it.a))}</b></div>`).join("");
       return;
     }
     const w = e.target.closest("[data-wk]");
     if (w) {
       const i = Number(w.dataset.wk), x = MyStats._wk[i]; box.querySelectorAll(".ms-wk").forEach((el, j) => el.classList.toggle("sel", j === i));
       box.querySelector("#msWkDetail").innerHTML = !x.items.length ? `<div style="font-size:14px;text-align:center;background:rgba(127,127,127,.14);border-radius:10px;padding:10px">${E(mt("w_none", { l: x.l }))}</div>`
-        : `<div style="font-size:12px;opacity:.7;margin-bottom:6px">${E(mt("w_head", { l: x.l, n: x.n }))}</div>` + x.items.map((it) => `<div class="ms-itm"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:14px">${E(MyStats.kindName(it.kind))}</b><span style="font-size:12px;opacity:.65">${E(String(it.work_date).slice(5).replace("-", "/"))}</span></div><div style="font-size:12px;opacity:.65;margin-top:2px">${E(it.work_order_no)} · ${E(it.station)}${it.machine ? " · " + E(it.machine) : ""}</div><div style="font-size:12px;color:#f0b24d;margin-top:3px">${E(it.detail || "")}</div></div>`).join("");
+        : `<div style="font-size:12px;opacity:.7;margin-bottom:6px">${E(mt("w_head", { l: x.l, n: x.n }))}</div>` + x.items.map((it) => `<div class="ms-itm"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:14px">${E(MyStats.kindName(it.kind))}</b><span style="font-size:12px;opacity:.65">${E(String(it.work_date).slice(5).replace("-", "/"))}</span></div><div style="font-size:12px;opacity:.65;margin-top:2px">${E(it.work_order_no)} · ${E(it.station)}${it.machine ? " · " + E(it.machine) : ""}</div><div style="font-size:12px;color:#f0b24d;margin-top:3px">${E(it.detail || "")}</div><button type="button" class="btn small ghost" style="margin-top:6px" data-ap="1" data-item="${E(MyStats.kindName(it.kind) + "　" + String(it.work_date).slice(5).replace("-", "/") + "　" + it.work_order_no + " " + (it.station || ""))}" data-job="${E(String(it.key || "").split("|")[1] || "")}" data-wo="${E(it.work_order_no)}" data-st="${E(it.station || "")}" data-d="${E(it.work_date)}">${mt("a_btn")}</button></div>`).join("");
     }
   };
+
+  MyStats.loadExtra(box).catch((e) => console.warn("MyStats.loadExtra", e));
 
   // 「最近沒做好的事」收合（預設收起來）
   const ib = $("#myIssueBox"), card = ib && ib.closest(".card");
@@ -285,4 +290,117 @@ MyStats.decorate = function (box, rows, issues) {
     const h = card.querySelector("h3"), title = h ? h.textContent : t("ms_issue_title");
     card.innerHTML = `<details class="ms-det"><summary>${E(title)}</summary><div id="myIssueBox" style="margin-top:10px"></div></details>`;
   }
+};
+
+// ============================================================
+//  我的績效：每天報工幾小時（近 7 天）／良率與水準線／扣點與缺失的申訴／補正
+//  資料：my_extra（電腦每小時寫入）、appeals（員工送出、主管在「申訴處理」通過或駁回）
+//  表還沒建（_live_v103_appeals.sql 沒跑）時，這幾塊會自己隱藏，不影響原本畫面
+// ============================================================
+Object.assign(MyStats.TX.zh, {
+  d_title: "每天報工幾小時（近 7 天）", d_sub: "實心＝你實際在崗的時間（同時顧兩台只算一次）；斜線＝同時操作多台、疊在一起的時間。綠＝6～12 小時、紅＝不足 6 或超過 12 小時；虛線是 8 小時",
+  d_off: "休", d_miss: "未報",
+  y_title: "我的良率 vs 水準線", y_sub: "良率＝（生產數量－報廢）÷ 生產數量。越靠右越好，過了白線＝達到水準", y_ok: "✅ 達到水準線 {t}%", y_low: "⚠️ 低於水準線 {t}%",
+  y_scrap: "報廢 {s} 件／共 {n} 筆", y_avg: "全廠平均 {a}%", y_me: "我", y_line: "水準線 {t}%", y_none: "目前沒有數量資料可以計算", y_month: "{m}月",
+  a_title: "扣點與缺失的申訴／補正", a_sub: "覺得扣錯了？或忘記按結束想補正實際時間？在這裡告訴主管",
+  a_steps: "① 你送出 → ② 主管確認 → ③ 通過：點數最慢 1 小時後自動補回　／　駁回：會寫原因", a_new: "＋ 新增申訴／補正", a_btn: "申訴／補正", a_none: "還沒有送過申訴",
+  a_modal: "扣點／缺失 申訴與補正", a_hint: "送出後主管會確認，通過後點數會自動補回。", a_item: "這是哪一筆？", a_what: "你要做什麼？",
+  a_fix: "補正：我忘記按結束／暫停（填實際時間）", a_deny: "申訴：我其實有按，不是違規", a_team: "申訴：同單連坐不合理", a_other: "其他",
+  a_time: "實際的結束（或暫停）時間", a_note: "說明（必填）", a_ph: "例：那天 20:30 我已經下班，忘記按結束，隔天早上才補按", a_cancel: "取消", a_send: "送出給主管",
+  a_need: "請先寫說明，主管才知道怎麼處理", a_sent: "已送出給主管", a_mgr: "主管回覆", a_pend: "待主管處理", a_ok: "已通過", a_no: "已駁回", a_fail: "送出失敗，請稍後再試",
+});
+Object.assign(MyStats.TX.vi, {
+  d_title: "Số giờ làm mỗi ngày (7 ngày gần đây)", d_sub: "Cột đặc = thời gian bạn thực sự có mặt (vận hành 2 máy cùng lúc chỉ tính một lần); phần sọc = thời gian chồng lên nhau khi vận hành nhiều máy. Xanh = 6～12 giờ, đỏ = dưới 6 hoặc trên 12 giờ; đường nét đứt là 8 giờ",
+  d_off: "Nghỉ", d_miss: "Chưa báo",
+  y_title: "Tỷ lệ đạt của tôi so với mức chuẩn", y_sub: "Tỷ lệ đạt = (số lượng sản xuất − phế phẩm) ÷ số lượng sản xuất. Càng sang phải càng tốt, qua vạch trắng = đạt chuẩn", y_ok: "✅ Đạt mức chuẩn {t}%", y_low: "⚠️ Dưới mức chuẩn {t}%",
+  y_scrap: "Phế phẩm {s} cái / tổng {n} lần báo", y_avg: "Trung bình toàn xưởng {a}%", y_me: "Tôi", y_line: "Mức chuẩn {t}%", y_none: "Hiện chưa có dữ liệu số lượng để tính", y_month: "Tháng {m}",
+  a_title: "Khiếu nại / điều chỉnh trừ điểm và thiếu sót", a_sub: "Cảm thấy bị trừ sai, hoặc quên bấm kết thúc và muốn sửa giờ thực tế? Hãy báo cho quản lý tại đây",
+  a_steps: "① Bạn gửi → ② Quản lý xác nhận → ③ Được duyệt: điểm tự động cộng lại (tối đa sau 1 giờ) / Bị từ chối: có ghi lý do", a_new: "+ Gửi khiếu nại / điều chỉnh", a_btn: "Khiếu nại / điều chỉnh", a_none: "Chưa gửi khiếu nại nào",
+  a_modal: "Khiếu nại / điều chỉnh trừ điểm", a_hint: "Sau khi gửi quản lý sẽ xác nhận, nếu được duyệt điểm sẽ tự động cộng lại.", a_item: "Đây là mục nào?", a_what: "Bạn muốn làm gì?",
+  a_fix: "Điều chỉnh: tôi quên bấm kết thúc/tạm dừng (nhập giờ thực tế)", a_deny: "Khiếu nại: thực ra tôi đã bấm, không vi phạm", a_team: "Khiếu nại: bị liên đới cùng lệnh không hợp lý", a_other: "Khác",
+  a_time: "Giờ kết thúc (hoặc tạm dừng) thực tế", a_note: "Giải thích (bắt buộc)", a_ph: "VD: hôm đó 20:30 tôi đã tan ca, quên bấm kết thúc, sáng hôm sau mới bấm bù", a_cancel: "Hủy", a_send: "Gửi cho quản lý",
+  a_need: "Hãy viết giải thích để quản lý biết cách xử lý", a_sent: "Đã gửi cho quản lý", a_mgr: "Phản hồi của quản lý", a_pend: "Chờ quản lý xử lý", a_ok: "Đã duyệt", a_no: "Bị từ chối", a_fail: "Gửi thất bại, vui lòng thử lại",
+});
+
+// 讀 my_extra（每日時數、良率）與自己的申訴，補在圖表區和下方
+MyStats.loadExtra = async function (box) {
+  const E = msEsc, N = msNum, ch = box.querySelector(".ms-ch"); if (!ch || !App.ME) return;
+  const [ex, ap] = await Promise.all([
+    sb.from("my_extra").select("kind,data").eq("employee_id", App.ME.id),
+    sb.from("appeals").select("*").eq("employee_id", App.ME.id).order("created_at", { ascending: false }).limit(30),
+  ]);
+  const get = (k) => ((ex.data || []).find((r) => r.kind === k) || {}).data || null;
+  const daily = get("daily"), yld = get("yield");
+  let add = "";
+
+  // 每天報工幾小時（近 7 天，直條）
+  if (daily) {
+    const today = new Date(); today.setHours(0, 0, 0, 0); const WN = ["日", "一", "二", "三", "四", "五", "六"];
+    const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(today.getTime() - i * 864e5); days.push(d); }
+    const hv = days.map((d) => { const z = (daily.days || {})[fmtDate(d)] || { u: 0, s: 0 }; return { d, h: z.u, s: z.s, ov: Math.max(0, z.s - z.u), wd: d.getDay() }; });
+    const hmax = Math.max(10, ...hv.map((x) => x.s)), BH = 110;
+    add += `<div class="ms-cx"><h4>${mt("d_title")}</h4><p class="sb">${mt("d_sub")}</p>
+      <div style="position:relative;display:grid;grid-template-columns:repeat(7,1fr);gap:8px;align-items:end;height:${BH + 54}px;padding-top:6px"><div style="position:absolute;left:0;right:0;bottom:${30 + 8 / hmax * BH}px;border-top:2px dashed #3ccf93;opacity:.7"></div>
+      ${hv.map((x) => { const wk = x.wd === 0 || x.wd === 6, bad = !wk && (x.h < 6 || x.h > 12), col = !x.h ? "transparent" : bad ? "#ff7a87" : "#3ccf93", hh = x.h ? Math.max(4, Math.min(x.h, hmax) / hmax * BH) : 0;
+        return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div style="font-size:13px;font-weight:700;margin-bottom:3px;color:${bad ? "#ff7a87" : "inherit"}">${x.h ? x.h.toFixed(1) + (x.ov >= 0.3 ? `<span style="font-weight:400;color:#f0b24d"> +${x.ov.toFixed(1)}</span>` : "") : (wk ? mt("d_off") : mt("d_miss"))}</div>${x.ov >= 0.3 ? `<div style="width:70%;max-width:46px;height:${Math.max(3, Math.min(x.ov, hmax) / hmax * BH)}px;border-radius:7px 7px 0 0;background:repeating-linear-gradient(45deg,rgba(240,178,77,.75) 0 4px,rgba(240,178,77,.18) 4px 8px)"></div>` : ""}<div style="width:70%;max-width:46px;height:${hh}px;border-radius:${x.ov >= 0.3 ? "0" : "7px 7px 0 0"};background:${col}"></div><div style="font-size:12px;opacity:.65;margin-top:6px;line-height:1.3;text-align:center">${String(x.d.getMonth() + 1).padStart(2, "0")}/${String(x.d.getDate()).padStart(2, "0")}<br>${mt("d_off") === "休" ? "週" : ""}${WN[x.wd]}</div></div>`; }).join("")}</div></div>`;
+  }
+
+  // 良率 vs 水準線
+  if (yld) {
+    const T = yld.target || 0.95, a = yld.all, y = a && a.qty > 0 ? (a.qty - a.scrap) / a.qty : null, avg = yld.avg;
+    const LO = 0.9, pos = (v) => Math.max(0, Math.min(100, (v - LO) / (1 - LO) * 100));
+    const ms = Object.entries(yld.months || {}).sort().map(([k, v]) => [Number(k.slice(5)), v.qty > 0 ? (v.qty - v.scrap) / v.qty : null]);
+    add += `<div class="ms-cx"><h4>${mt("y_title")}</h4><p class="sb">${mt("y_sub")}</p>${y == null ? `<div style="opacity:.7">${mt("y_none")}</div>` : `
+      <div style="text-align:center"><span style="font-size:38px;font-weight:800;color:${y >= T ? "#3ccf93" : "#f0b24d"}">${(y * 100).toFixed(1)}%</span><div style="font-size:13px;opacity:.75">${y >= T ? mt("y_ok", { t: T * 100 }) : mt("y_low", { t: T * 100 })}　｜　${mt("y_scrap", { s: a.scrap, n: a.n })}</div></div>
+      <div style="position:relative;height:62px;margin:16px 4px 4px"><div style="position:absolute;left:0;right:0;top:24px;height:14px;border-radius:7px;background:linear-gradient(90deg,rgba(255,122,135,.45) 0,rgba(240,178,77,.45) ${pos(T) * 0.7}%,rgba(60,207,147,.55) ${pos(T)}%,rgba(60,207,147,.55) 100%)"></div>
+      <div style="position:absolute;left:${pos(T)}%;top:16px;bottom:10px;border-left:2px dashed currentColor"></div><div style="position:absolute;left:${pos(T)}%;top:0;transform:translateX(-50%);font-size:11px;white-space:nowrap">${mt("y_line", { t: T * 100 })}</div>
+      ${avg != null ? `<div style="position:absolute;left:${pos(avg)}%;top:38px;transform:translateX(-50%);font-size:11px;opacity:.7;text-align:center;white-space:nowrap">◆<br>${mt("y_avg", { a: (avg * 100).toFixed(1) })}</div>` : ""}
+      <div style="position:absolute;left:${pos(y)}%;top:10px;transform:translateX(-50%);font-size:18px;color:#79a7ff;line-height:1">▼</div>
+      <div style="position:absolute;left:0;top:40px;font-size:10px;opacity:.5">90%</div><div style="position:absolute;right:0;top:40px;font-size:10px;opacity:.5">100%</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;justify-content:center">${ms.map(([m, v]) => `<span style="background:rgba(127,127,127,.18);border-radius:99px;padding:3px 12px;font-size:13px">${mt("y_month", { m })}　<b style="color:${v == null ? "inherit" : v >= T ? "#3ccf93" : "#f0b24d"}">${v == null ? "—" : (v * 100).toFixed(1) + "%"}</b></span>`).join("")}</div>
+      <div style="text-align:center;margin-top:8px;font-size:12px;opacity:.6">▼ ${mt("y_me")}　◆ ${mt("y_avg", { a: "" }).replace(/\s*%$/, "")}　${mt("y_line", { t: T * 100 })}</div>`}</div>`;
+  }
+  if (add) ch.insertAdjacentHTML("beforeend", add);
+
+  // 申訴／補正區（表還沒建就不顯示）
+  if (ap.error) return;
+  MyStats._appeals = ap.data || [];
+  const stCls = (s) => s === "已通過" ? ["#12382a", "#3ccf93", mt("a_ok")] : s === "已駁回" ? ["#3a1e24", "#ff7a87", mt("a_no")] : ["#3a3217", "#f0b24d", mt("a_pend")];
+  const list = MyStats._appeals.map((r) => { const c = stCls(r.status); return `<div style="background:rgba(127,127,127,.14);border-radius:10px;padding:10px 12px;margin:8px 0"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:14px">${E(r.item)}</b><span style="background:${c[0]};color:${c[1]};border-radius:99px;padding:2px 10px;font-size:12px;white-space:nowrap">${E(c[2])}</span></div><div style="font-size:12px;opacity:.65;margin-top:3px">${E(mt("a_" + r.kind))}　${E(fmtDate(r.created_at))}</div><div style="font-size:13px;margin-top:4px">${E(r.note)}</div>${r.manager_note ? `<div style="font-size:12px;color:#f0b24d;margin-top:4px">${mt("a_mgr")}：${E(r.manager_note)}${Number(r.adj_points) ? `（＋${N(r.adj_points)}）` : ""}</div>` : ""}</div>`; }).join("") || `<div style="opacity:.6;font-size:13px">${mt("a_none")}</div>`;
+  const old = box.querySelector(".ms-ap"); if (old) old.remove();
+  box.insertAdjacentHTML("beforeend", `<details class="ms-det ms-ap ms-cx" style="margin-top:16px"${MyStats._apOpen ? " open" : ""}><summary>${mt("a_title")}</summary><p class="sb" style="margin-top:6px">${mt("a_sub")}</p><div style="font-size:12px;opacity:.7;margin:0 0 10px">${mt("a_steps")}</div><button type="button" class="btn small" data-ap="new">${mt("a_new")}</button><div style="margin-top:10px">${list}</div></details>`);
+  const det = box.querySelector(".ms-ap"); if (det) det.ontoggle = () => { MyStats._apOpen = det.open; };
+};
+
+// 申訴／補正視窗
+MyStats.openAppeal = function (pre) {
+  pre = pre || {}; const E = msEsc;
+  const recent = (MyStats._issues || []).filter((r) => r.kind !== "完成度未填");
+  const opts = [];
+  if (pre.item) opts.push({ item: pre.item, job_id: pre.job_id || null, wo: pre.wo || null, st: pre.st || null, d: pre.d || null });
+  recent.forEach((r) => opts.push({ item: `${MyStats.kindName(r.kind)}　${String(r.work_date).slice(5).replace("-", "/")}　${r.work_order_no} ${r.station || ""}`, job_id: String(r.key || "").split("|")[1] || null, wo: r.work_order_no, st: r.station, d: r.work_date }));
+  opts.push({ item: mt("a_other"), job_id: null });
+  MyStats._apOpts = opts;
+  let m = document.getElementById("msApModal");
+  if (!m) { m = document.createElement("div"); m.id = "msApModal"; m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:80;display:flex;align-items:center;justify-content:center;padding:14px"; document.body.appendChild(m); }
+  m.innerHTML = `<div style="background:#182030;color:#e8edf5;border:1px solid #2a3649;border-radius:16px;padding:18px;max-width:460px;width:100%;max-height:92vh;overflow:auto">
+    <h3 style="margin:0 0 4px">${mt("a_modal")}</h3><div style="font-size:12px;opacity:.7">${mt("a_hint")}</div>
+    <label style="display:block;font-size:13px;opacity:.7;margin:12px 0 4px">${mt("a_item")}</label><select id="msApItem" style="width:100%;padding:9px;border-radius:8px;background:#0f1722;color:#e8edf5;border:1px solid #2a3649;font-size:15px">${opts.map((o, i) => `<option value="${i}">${E(o.item)}</option>`).join("")}</select>
+    <label style="display:block;font-size:13px;opacity:.7;margin:12px 0 4px">${mt("a_what")}</label><select id="msApKind" style="width:100%;padding:9px;border-radius:8px;background:#0f1722;color:#e8edf5;border:1px solid #2a3649;font-size:15px"><option value="fix">${mt("a_fix")}</option><option value="deny">${mt("a_deny")}</option><option value="team">${mt("a_team")}</option><option value="other">${mt("a_other")}</option></select>
+    <div id="msApTimeBox"><label style="display:block;font-size:13px;opacity:.7;margin:12px 0 4px">${mt("a_time")}</label><input id="msApTime" type="datetime-local" style="width:100%;box-sizing:border-box;padding:9px;border-radius:8px;background:#0f1722;color:#e8edf5;border:1px solid #2a3649;font-size:15px"></div>
+    <label style="display:block;font-size:13px;opacity:.7;margin:12px 0 4px">${mt("a_note")}</label><textarea id="msApNote" placeholder="${E(mt("a_ph"))}" style="width:100%;box-sizing:border-box;min-height:84px;padding:9px;border-radius:8px;background:#0f1722;color:#e8edf5;border:1px solid #2a3649;font-size:15px;font-family:inherit"></textarea>
+    <div style="display:flex;gap:10px;margin-top:14px"><button type="button" class="btn ghost" style="flex:1" id="msApCancel">${mt("a_cancel")}</button><button type="button" class="btn primary" style="flex:1" id="msApSend">${mt("a_send")}</button></div></div>`;
+  const kindSel = m.querySelector("#msApKind"), timeBox = m.querySelector("#msApTimeBox");
+  kindSel.onchange = () => { timeBox.style.display = kindSel.value === "fix" ? "" : "none"; };
+  if (pre.kind) { kindSel.value = pre.kind; kindSel.onchange(); }
+  m.querySelector("#msApCancel").onclick = () => m.remove();
+  m.querySelector("#msApSend").onclick = async () => {
+    const note = m.querySelector("#msApNote").value.trim(), kind = kindSel.value, o = MyStats._apOpts[Number(m.querySelector("#msApItem").value)] || {};
+    if (!note) { const ta = m.querySelector("#msApNote"); ta.style.borderColor = "#ff7a87"; ta.placeholder = mt("a_need"); return; }
+    const tv = m.querySelector("#msApTime").value;
+    const row = { employee_id: App.ME.id, kind, item: o.item, job_id: o.job_id || null, work_order_no: o.wo || null, station: o.st || null, work_date: o.d || null, actual_end: kind === "fix" && tv ? new Date(tv).toISOString() : null, note };
+    const { error } = await sb.from("appeals").insert(row);
+    if (error) { toast(mt("a_fail"), "err"); return; }
+    toast(mt("a_sent"), "ok"); m.remove(); MyStats._apOpen = true; MyStats.render();
+  };
 };
